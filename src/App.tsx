@@ -1893,15 +1893,37 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error: any) {
-      if (error.code === 'auth/popup-closed-by-user') {
-        setAuthError(lang === 'ar' ? 'تم إغلاق نافذة تسجيل الدخول.' : 'Login popup was closed.');
-      } else if (error.code === 'auth/cancelled-popup-request') {
-        // Silently ignore
+      console.error("Login failed", error);
+      const code = error?.code || '';
+      let msg = '';
+      if (code === 'auth/popup-closed-by-user') {
+        msg = lang === 'ar' ? 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.' : 'Sign-in popup was closed.';
+      } else if (code === 'auth/cancelled-popup-request') {
+        msg = lang === 'ar' ? 'تم إلغاء طلب تسجيل الدخول.' : 'Sign-in request was cancelled.';
+      } else if (code === 'auth/popup-blocked') {
+        msg = lang === 'ar' 
+          ? 'قام المتصفح بحظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة (Popups) للموقع أو فتح الموقع في تبويب جديد.' 
+          : 'Popup was blocked by your browser. Please allow popups or open in a new tab.';
+      } else if (code === 'auth/unauthorized-domain') {
+        msg = lang === 'ar' 
+          ? 'هذا النطاق غير مصرح به في إعدادات Firebase Auth. يرجى فتح التطبيق في تبويب جديد.' 
+          : 'This domain is not authorized in Firebase Auth. Please open the app in a new tab.';
+      } else if (code === 'auth/operation-not-allowed') {
+        msg = lang === 'ar' 
+          ? 'تسجيل الدخول بـ Google غير مفعّل في إعدادات Firebase.' 
+          : 'Google provider is disabled in Firebase Console.';
+      } else if (code === 'auth/network-request-failed') {
+        msg = lang === 'ar' 
+          ? 'فشل الاتصال بالشبكة. يرجى التأكد من اتصال الإنترنت ثم المحاولة مجدداً.' 
+          : 'Network request failed. Please check your connection and retry.';
       } else {
-        console.error("Login failed", error);
-        setAuthError(lang === 'ar' ? 'حدث خطأ أثناء تسجيل الدخول.' : 'An error occurred during login.');
+        const errorDetail = error?.message ? `: ${error.message}` : (code ? ` (${code})` : '');
+        msg = lang === 'ar' 
+          ? `حدث خطأ أثناء تسجيل الدخول${errorDetail}. جرب فتح الموقع في تبويب مستقل.` 
+          : `An error occurred during login${errorDetail}. Try opening the site in a new tab.`;
       }
-      setTimeout(() => setAuthError(null), 5000);
+      setAuthError(msg);
+      setTimeout(() => setAuthError(null), 12000);
     } finally {
       setIsLoggingIn(false);
     }
@@ -2238,8 +2260,28 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
       {/* Header */}
       <nav className="fixed top-0 w-full z-50 bg-dark-void/90 backdrop-blur-xl py-4 shadow-[0_4px_30px_rgba(0,0,0,0.5)] border-b border-white/[0.02]">
         {authError && (
-          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 px-6 py-3 bg-red-500/90 backdrop-blur-md text-white text-xs font-bold rounded-full shadow-2xl z-50 animate-bounce">
-            {authError}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-[92%] max-w-lg p-4 bg-red-950/95 border border-red-500/50 backdrop-blur-2xl text-white text-xs font-bold rounded-2xl shadow-2xl z-50 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 text-right">
+              <AlertCircle size={22} className="shrink-0 text-red-400" />
+              <span className="leading-relaxed text-red-100">{authError}</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <a 
+                href={window.location.href} 
+                target="_blank" 
+                rel="noreferrer"
+                className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-500/30 text-[10px] font-black rounded-xl transition-all whitespace-nowrap active:scale-95 flex items-center gap-1"
+              >
+                <Globe size={12} />
+                {lang === 'ar' ? 'فتح بتبويب جديد' : 'New Tab'}
+              </a>
+              <button 
+                onClick={() => setAuthError(null)}
+                className="p-1.5 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
           </div>
         )}
         <div className="max-w-7xl mx-auto px-4 sm:px-8 flex items-center justify-between">
