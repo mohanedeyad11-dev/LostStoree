@@ -1,0 +1,82 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-arabic: "Cairo", sans-serif;
+  
+  --color-deep-blue: #0a192f;
+  --color-dark-void: #020617;
+  --color-electric-blue: #439cfe;
+  --color-cyan-glow: #6ec388;
+
+  /* Custom violet palette override using #439cfe */
+  --color-violet-50: #e5f2ff;
+  --color-violet-100: #cce6ff;
+  --color-violet-200: #9cd0ff;
+  --color-violet-300: #6cb5ff;
+  --color-violet-400: #53a6ff;
+  --color-violet-500: #439cfe;
+  --color-violet-600: #2985eb;
+  --color-violet-700: #196bcc;
+  --color-violet-800: #0e52a6;
+  --color-violet-900: #0a3975;
+  --color-violet-950: #06244d;
+
+  /* Custom indigo palette override using #6ec388 */
+  --color-indigo-50: #f0fbf4;
+  --color-indigo-100: #ddf7e5;
+  --color-indigo-200: #bdeecd;
+  --color-indigo-300: #8ee1ab;
+  --color-indigo-400: #6ec388;
+  --color-indigo-500: #6ec388;
+  --color-indigo-600: #6ec388;
+  --color-indigo-700: #51a76a;
+  --color-indigo-800: #3c8a53;
+  --color-indigo-900: #2c6e3f;
+  --color-indigo-950: #184123;
+}
+
+:root {
+  background-color: var(--color-dark-void);
+  color: #f1f5f9;
+  color-scheme: dark;
+}
+
+body {
+  @apply antialiased;
+}
+
+[dir="rtl"] {
+  font-family: var(--font-arabic);
+}
+
+[dir="ltr"] {
+  font-family: var(--font-sans);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-dark-void);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-electric-blue);
+}
+
+.blue-glow {
+  box-shadow: 0 0 20px rgba(67, 156, 254, 0.2);
+}
+
+.blue-glow:hover {
+  box-shadow: 0 0 30px rgba(110, 195, 136, 0.4);
+}

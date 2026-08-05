@@ -1,0 +1,76 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && 
+        (request.auth.token.email in ["salamehmhnd@gmail.com", "mohaned.eyad11@gmail.com"]);
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 200;
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['userId', 'items', 'totalPrice', 'status', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.items is list &&
+             data.totalPrice is number &&
+             data.status in ['pending', 'processing', 'completed', 'cancelled'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidGameRequest(data) {
+      return data.keys().hasAll(['gameTitle', 'contactInfo', 'createdAt']) &&
+             data.gameTitle is string &&
+             data.contactInfo is string &&
+             data.createdAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create, update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /orders/{orderId} {
+      // allow get if owner, admin, or it doesn't exist (to allow generateOrderId check)
+      allow get: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
+      // allow list only for owner or admin
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isEmailVerified() && isValidOrder(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /game_requests/{requestId} {
+      allow read, list: if isAdmin();
+      allow create: if isValidGameRequest(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+    
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
