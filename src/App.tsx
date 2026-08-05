@@ -1922,10 +1922,19 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
   }, [cart, discount]);
 
   const handleConfirmPayment = useCallback(async (paypalOrderId?: string) => {
+    if (!user) {
+      const msg = lang === 'ar' 
+        ? 'يرجى تسجيل الدخول بحسابك أولاً لإكمال الطلب.' 
+        : 'Please sign in to your account first to complete the order.';
+      setPaymentError(msg);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     // If it's PayPal, we MUST have a confirmed PayPal Order ID
     if (paymentMethod === 'paypal' && !paypalOrderId) return;
 
-    if (paymentMethod && (screenshot || paymentMethod === 'paypal') && user && !isSubmitting) {
+    if (paymentMethod && (screenshot || paymentMethod === 'paypal' || paymentMethod === 'usdt') && user && !isSubmitting) {
       setIsSubmitting(true);
       try {
         let screenshotBase64 = null;
@@ -3663,6 +3672,55 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                 </button>
               </div>
 
+              {!user && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-8 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-amber-400"
+                >
+                  <div className="flex items-center gap-3">
+                    <AlertCircle size={24} className="shrink-0 text-amber-400" />
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-wider">
+                        {lang === 'ar' ? 'تنبيه: يلزم تسجيل الدخول أولاً' : 'Notice: Login Required First'}
+                      </p>
+                      <p className="text-[11px] text-amber-300/80 mt-0.5">
+                        {lang === 'ar' 
+                          ? 'يرجى تسجيل الدخول بحسابك لتتمكن من تأكيد الدفع وإكمال الطلب بنجاح.' 
+                          : 'Please sign in to your account before confirming payment to complete your order.'}
+                      </p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleLogin}
+                    disabled={isLoggingIn}
+                    className="px-5 py-2.5 bg-amber-500 text-black text-xs font-black uppercase rounded-xl hover:bg-amber-400 transition-all shrink-0 active:scale-95 shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                  >
+                    <UserIcon size={14} className={isLoggingIn ? 'animate-spin' : ''} />
+                    {isLoggingIn ? (lang === 'ar' ? 'جاري التسجيل...' : 'Signing in...') : (lang === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now')}
+                  </button>
+                </motion.div>
+              )}
+
+              {paymentError && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="mb-8 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-between gap-3 text-red-500 shadow-lg shadow-red-500/10"
+                >
+                  <div className="flex items-center gap-3">
+                    <AlertCircle size={20} className="shrink-0" />
+                    <span className="text-xs font-black uppercase tracking-wider leading-relaxed">{paymentError}</span>
+                  </div>
+                  <button 
+                    onClick={() => setPaymentError(null)}
+                    className="p-1 hover:bg-white/5 rounded-full transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                </motion.div>
+              )}
+
               <div className="space-y-10">
                 <div className="bg-white/5 rounded-3xl p-6 border border-white/5">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6 text-center">{lang === 'ar' ? 'ملخص الطلب' : 'Order Summary'}</h3>
@@ -3771,8 +3829,16 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                       <PayPalButtons 
                         key={paypalResetKey}
                         style={{ layout: "vertical", shape: "rect", label: "pay" }}
-                        onClick={() => {
+                        onClick={(data, actions) => {
                           setPaymentError(null);
+                          if (!user) {
+                            const msg = lang === 'ar' 
+                              ? 'يرجى تسجيل الدخول بحسابك أولاً لإكمال الطلب.' 
+                              : 'Please sign in to your account first to complete the order.';
+                            setPaymentError(msg);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                            return actions.reject();
+                          }
                         }}
                         createOrder={(data, actions) => {
                           return actions.order.create({
@@ -3974,7 +4040,17 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
 
                     <button 
                       disabled={(paymentMethod === 'usdt' ? !txid : !screenshot) || isSubmitting}
-                      onClick={() => handleConfirmPayment()}
+                      onClick={() => {
+                        if (!user) {
+                          const msg = lang === 'ar' 
+                            ? 'يرجى تسجيل الدخول بحسابك أولاً لإكمال الطلب.' 
+                            : 'Please sign in to your account first to complete the order.';
+                          setPaymentError(msg);
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          return;
+                        }
+                        handleConfirmPayment();
+                      }}
                       className={`w-full py-6 font-black uppercase tracking-widest rounded-2xl transition-all shadow-xl ${(paymentMethod === 'usdt' ? txid : screenshot) && !isSubmitting ? 'bg-violet-600 text-white hover:bg-violet-500 shadow-violet-600/20' : 'bg-white/5 text-white/20 cursor-not-allowed'}`}
                     >
                       {isSubmitting ? (
