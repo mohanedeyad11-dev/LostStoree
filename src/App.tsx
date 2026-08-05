@@ -50,6 +50,8 @@ import {
   auth, 
   db, 
   signInWithPopup, 
+  signInAnonymously,
+  updateProfile,
   googleProvider, 
   signOut, 
   onAuthStateChanged,
@@ -1758,9 +1760,9 @@ export default function App() {
         // Sync user to Firestore - Use setDoc with merge to preserve roles
         setDoc(doc(db, 'users', currentUser.uid), {
           uid: currentUser.uid,
-          email: currentUser.email,
-          displayName: currentUser.displayName,
-          photoURL: currentUser.photoURL,
+          email: currentUser.email || `${currentUser.uid.substring(0, 8)}@guest.lost`,
+          displayName: currentUser.displayName || (currentUser.isAnonymous ? 'زائر Lost' : 'مستخدم Lost'),
+          photoURL: currentUser.photoURL || null,
           role: 'user' // Default role, firestore rules prevent self-escalation
         }, { merge: true }).catch((error) => {
           console.error("User sync failed", error);
@@ -1886,6 +1888,25 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
     }
   };
 
+  const handleQuickGuestLogin = useCallback(async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+    setAuthError(null);
+    try {
+      const res = await signInAnonymously(auth);
+      if (res.user) {
+        await updateProfile(res.user, {
+          displayName: lang === 'ar' ? 'زائر Lost' : 'Lost Guest'
+        });
+      }
+    } catch (err: any) {
+      console.error("Guest login failed", err);
+      setAuthError(lang === 'ar' ? 'تعذر تسجيل الدخول كزائر.' : 'Guest login failed.');
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }, [isLoggingIn, lang]);
+
   const handleLogin = useCallback(async () => {
     if (isLoggingIn) return;
     setIsLoggingIn(true);
@@ -1895,6 +1916,25 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
     } catch (error: any) {
       console.error("Login failed", error);
       const code = error?.code || '';
+      
+      // Automatic fallback to Anonymous/Guest login if domain or popup is restricted
+      if (code === 'auth/unauthorized-domain' || code === 'auth/operation-not-allowed' || code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
+        try {
+          console.log("Attempting seamless guest auth fallback due to popup restriction...");
+          const res = await signInAnonymously(auth);
+          if (res.user) {
+            await updateProfile(res.user, {
+              displayName: lang === 'ar' ? 'زائر Lost' : 'Lost Guest'
+            });
+          }
+          setAuthError(null);
+          setIsLoggingIn(false);
+          return;
+        } catch (anonError) {
+          console.error("Anonymous fallback failed", anonError);
+        }
+      }
+
       let msg = '';
       if (code === 'auth/popup-closed-by-user') {
         msg = lang === 'ar' ? 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.' : 'Sign-in popup was closed.';
@@ -1902,12 +1942,12 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
         msg = lang === 'ar' ? 'تم إلغاء طلب تسجيل الدخول.' : 'Sign-in request was cancelled.';
       } else if (code === 'auth/popup-blocked') {
         msg = lang === 'ar' 
-          ? 'قام المتصفح بحظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة (Popups) للموقع أو فتح الموقع في تبويب جديد.' 
-          : 'Popup was blocked by your browser. Please allow popups or open in a new tab.';
+          ? 'قام المتصفح بحظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة (Popups) للموقع أو استخدام الدخول السريع.' 
+          : 'Popup was blocked by your browser. Please allow popups or use quick sign-in.';
       } else if (code === 'auth/unauthorized-domain') {
         msg = lang === 'ar' 
-          ? 'هذا النطاق غير مصرح به في إعدادات Firebase Auth. يرجى فتح التطبيق في تبويب جديد.' 
-          : 'This domain is not authorized in Firebase Auth. Please open the app in a new tab.';
+          ? 'هذا النطاق غير مصرح به في إعدادات Google OAuth الخاصة بـ Firebase. يمكنك استخدام الدخول السريع كزائر أو فتح الموقع في تبويب مستقل.' 
+          : 'This domain is not authorized in Firebase OAuth. You can use quick guest login or open in a new tab.';
       } else if (code === 'auth/operation-not-allowed') {
         msg = lang === 'ar' 
           ? 'تسجيل الدخول بـ Google غير مفعّل في إعدادات Firebase.' 
@@ -1919,8 +1959,8 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
       } else {
         const errorDetail = error?.message ? `: ${error.message}` : (code ? ` (${code})` : '');
         msg = lang === 'ar' 
-          ? `حدث خطأ أثناء تسجيل الدخول${errorDetail}. جرب فتح الموقع في تبويب مستقل.` 
-          : `An error occurred during login${errorDetail}. Try opening the site in a new tab.`;
+          ? `حدث خطأ أثناء تسجيل الدخول${errorDetail}.` 
+          : `An error occurred during login${errorDetail}.`;
       }
       setAuthError(msg);
       setTimeout(() => setAuthError(null), 12000);
@@ -2266,6 +2306,13 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
               <span className="leading-relaxed text-red-100">{authError}</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <button 
+                onClick={handleQuickGuestLogin}
+                className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-200 border border-emerald-500/30 text-[10px] font-black rounded-xl transition-all whitespace-nowrap active:scale-95 flex items-center gap-1"
+              >
+                <Zap size={12} className="text-emerald-400" />
+                {lang === 'ar' ? 'دخول سريع كزائر' : 'Quick Guest Sign-in'}
+              </button>
               <a 
                 href={window.location.href} 
                 target="_blank" 
@@ -3718,29 +3765,39 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                 <motion.div 
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mb-8 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-amber-400"
+                  className="mb-8 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col items-stretch gap-4 text-amber-400"
                 >
                   <div className="flex items-center gap-3">
                     <AlertCircle size={24} className="shrink-0 text-amber-400" />
                     <div>
                       <p className="text-xs font-black uppercase tracking-wider">
-                        {lang === 'ar' ? 'تنبيه: يلزم تسجيل الدخول أولاً' : 'Notice: Login Required First'}
+                        {lang === 'ar' ? 'تنبيه: يلزم تسجيل الدخول لإكمال الطلب' : 'Notice: Login Required First'}
                       </p>
                       <p className="text-[11px] text-amber-300/80 mt-0.5">
                         {lang === 'ar' 
-                          ? 'يرجى تسجيل الدخول بحسابك لتتمكن من تأكيد الدفع وإكمال الطلب بنجاح.' 
-                          : 'Please sign in to your account before confirming payment to complete your order.'}
+                          ? 'اختر طريقة تسجيل الدخول المفضل لديك لإبراز طلبك وإتمامه بنجاح.' 
+                          : 'Choose your preferred login method to complete your order.'}
                       </p>
                     </div>
                   </div>
-                  <button 
-                    onClick={handleLogin}
-                    disabled={isLoggingIn}
-                    className="px-5 py-2.5 bg-amber-500 text-black text-xs font-black uppercase rounded-xl hover:bg-amber-400 transition-all shrink-0 active:scale-95 shadow-lg shadow-amber-500/20 flex items-center gap-2"
-                  >
-                    <UserIcon size={14} className={isLoggingIn ? 'animate-spin' : ''} />
-                    {isLoggingIn ? (lang === 'ar' ? 'جاري التسجيل...' : 'Signing in...') : (lang === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now')}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-3 justify-end pt-2 border-t border-amber-500/20">
+                    <button 
+                      onClick={handleQuickGuestLogin}
+                      disabled={isLoggingIn}
+                      className="px-4 py-2.5 bg-emerald-500 text-black text-xs font-black uppercase rounded-xl hover:bg-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-500/20 flex items-center gap-2"
+                    >
+                      <Zap size={14} />
+                      {lang === 'ar' ? 'دخول سريع (زائر)' : 'Quick Guest Sign In'}
+                    </button>
+                    <button 
+                      onClick={handleLogin}
+                      disabled={isLoggingIn}
+                      className="px-4 py-2.5 bg-amber-500 text-black text-xs font-black uppercase rounded-xl hover:bg-amber-400 transition-all active:scale-95 shadow-lg shadow-amber-500/20 flex items-center gap-2"
+                    >
+                      <UserIcon size={14} className={isLoggingIn ? 'animate-spin' : ''} />
+                      {isLoggingIn ? (lang === 'ar' ? 'جاري التسجيل...' : 'Signing in...') : (lang === 'ar' ? 'تسجيل عبر Google' : 'Sign In with Google')}
+                    </button>
+                  </div>
                 </motion.div>
               )}
 
