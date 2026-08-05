@@ -36,6 +36,9 @@ import {
   Minus,
   Package,
   Mail,
+  Lock,
+  LogIn,
+  UserPlus,
   CreditCard,
   Star,
   Tv,
@@ -50,7 +53,8 @@ import {
   auth, 
   db, 
   signInWithPopup, 
-  signInAnonymously,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   updateProfile,
   googleProvider, 
   signOut, 
@@ -1678,8 +1682,263 @@ const DeliverySection = ({ order, t, onUpdate }: { order: any, t: any, onUpdate:
 const ADMIN_EMAILS = ['salamehmhnd@gmail.com', 'mohaned.eyad11@gmail.com'];
 const isAdminEmail = (email?: string | null) => !!email && ADMIN_EMAILS.includes(email.toLowerCase());
 
+interface AuthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  lang: Language;
+}
+
+function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (!email || !password) {
+      setError(lang === 'ar' ? 'يرجى إدخال البريد الإلكتروني وكلمة المرور.' : 'Please enter email and password.');
+      return;
+    }
+
+    if (mode === 'signup' && !displayName) {
+      setError(lang === 'ar' ? 'يرجى إدخال الاسم الكامل.' : 'Please enter your name.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError(lang === 'ar' ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.' : 'Password must be at least 6 characters.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (mode === 'signup') {
+        const res = await createUserWithEmailAndPassword(auth, email.trim(), password);
+        if (res.user) {
+          await updateProfile(res.user, { displayName: displayName.trim() });
+          await setDoc(doc(db, 'users', res.user.uid), {
+            uid: res.user.uid,
+            email: res.user.email,
+            displayName: displayName.trim(),
+            photoURL: null,
+            role: 'user'
+          }, { merge: true });
+        }
+      } else {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+      }
+      onClose();
+    } catch (err: any) {
+      console.error("Auth error:", err);
+      const code = err?.code || '';
+      if (code === 'auth/email-already-in-use') {
+        setError(lang === 'ar' ? 'هذا البريد الإلكتروني مستخدم بالفعل. حاول تسجيل الدخول.' : 'Email is already in use. Please sign in.');
+      } else if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setError(lang === 'ar' ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect email or password.');
+      } else if (code === 'auth/invalid-email') {
+        setError(lang === 'ar' ? 'عنوان البريد الإلكتروني غير صحيح.' : 'Invalid email address.');
+      } else if (code === 'auth/weak-password') {
+        setError(lang === 'ar' ? 'كلمة المرور ضعيفة جداً.' : 'Weak password.');
+      } else {
+        setError(lang === 'ar' ? 'حدث خطأ أثناء العملية. يرجى التأكد من البيانات.' : 'Authentication error. Please check your info.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      await signInWithPopup(auth, googleProvider);
+      onClose();
+    } catch (err: any) {
+      console.error("Google Auth error:", err);
+      const code = err?.code || '';
+      if (code === 'auth/unauthorized-domain' || code === 'auth/popup-blocked') {
+        setError(lang === 'ar' 
+          ? 'تسجيل الدخول بـ Google مقيّد على هذا النطاق، يمكنك استخدام البريد الإلكتروني وكلمة المرور أعلاه مباشرة وسيعمل فوراً بدون أي قيود.' 
+          : 'Google sign-in is restricted on this domain. Please use Email & Password above to sign in instantly.');
+      } else {
+        setError(lang === 'ar' ? 'حدث خطأ أثناء تسجيل الدخول بـ Google.' : 'Google sign-in error.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4"
+    >
+      <motion.div 
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md bg-dark-void border border-violet-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden text-right"
+      >
+        <button 
+          onClick={onClose}
+          className="absolute top-5 left-5 p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all"
+        >
+          <X size={20} />
+        </button>
+
+        {/* Header Branding */}
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-black italic tracking-wider text-white uppercase">
+            <span className="text-violet-500">LO</span>ST
+          </h2>
+          <p className="text-xs text-slate-400 mt-1 font-semibold">
+            {mode === 'login' 
+              ? (lang === 'ar' ? 'تسجيل الدخول إلى حسابك' : 'Sign in to your account') 
+              : (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create a new account')}
+          </p>
+        </div>
+
+        {/* Tab switcher */}
+        <div className="flex bg-white/5 p-1 rounded-2xl mb-6 border border-white/5">
+          <button 
+            type="button"
+            onClick={() => { setMode('login'); setError(null); }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${mode === 'login' ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30' : 'text-slate-400 hover:text-white'}`}
+          >
+            {lang === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
+          </button>
+          <button 
+            type="button"
+            onClick={() => { setMode('signup'); setError(null); }}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${mode === 'signup' ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30' : 'text-slate-400 hover:text-white'}`}
+          >
+            {lang === 'ar' ? 'حساب جديد' : 'Sign Up'}
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2 font-medium">
+            <AlertCircle size={18} className="shrink-0 text-red-400" />
+            <span className="leading-relaxed">{error}</span>
+          </div>
+        )}
+
+        {/* Email & Password Form */}
+        <form onSubmit={handleEmailAuth} className="space-y-4">
+          {mode === 'signup' && (
+            <div>
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                {lang === 'ar' ? 'الاسم الكامل' : 'Full Name'}
+              </label>
+              <div className="relative">
+                <input 
+                  type="text"
+                  required
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={lang === 'ar' ? 'مثال: محمد أحمد' : 'e.g. John Doe'}
+                  className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
+                />
+                <UserIcon size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+              {lang === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}
+            </label>
+            <div className="relative">
+              <input 
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
+              />
+              <Mail size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+              {lang === 'ar' ? 'كلمة المرور' : 'Password'}
+            </label>
+            <div className="relative">
+              <input 
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
+              />
+              <Lock size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            </div>
+          </div>
+
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 bg-violet-600 hover:bg-violet-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 mt-2 active:scale-95"
+          >
+            {loading ? (
+              <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+            ) : mode === 'login' ? (
+              <>
+                <LogIn size={16} />
+                {lang === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
+              </>
+            ) : (
+              <>
+                <UserPlus size={16} />
+                {lang === 'ar' ? 'إنشاء الحساب' : 'Create Account'}
+              </>
+            )}
+          </button>
+        </form>
+
+        <div className="relative my-6 text-center">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
+          <span className="relative bg-dark-void px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            {lang === 'ar' ? 'أو' : 'OR'}
+          </span>
+        </div>
+
+        {/* Google Auth Button */}
+        <button 
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={loading}
+          className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+          </svg>
+          {lang === 'ar' ? 'متابعة باستخدام Google' : 'Continue with Google'}
+        </button>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [gameRequests, setGameRequests] = useState<any[]>([]);
   const [adminSubTab, setAdminSubTab] = useState<'orders' | 'requests'>('orders');
@@ -1760,8 +2019,8 @@ export default function App() {
         // Sync user to Firestore - Use setDoc with merge to preserve roles
         setDoc(doc(db, 'users', currentUser.uid), {
           uid: currentUser.uid,
-          email: currentUser.email || `${currentUser.uid.substring(0, 8)}@guest.lost`,
-          displayName: currentUser.displayName || (currentUser.isAnonymous ? 'زائر Lost' : 'مستخدم Lost'),
+          email: currentUser.email || `${currentUser.uid.substring(0, 8)}@user.lost`,
+          displayName: currentUser.displayName || 'مستخدم Lost',
           photoURL: currentUser.photoURL || null,
           role: 'user' // Default role, firestore rules prevent self-escalation
         }, { merge: true }).catch((error) => {
@@ -1888,86 +2147,9 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
     }
   };
 
-  const handleQuickGuestLogin = useCallback(async () => {
-    if (isLoggingIn) return;
-    setIsLoggingIn(true);
-    setAuthError(null);
-    try {
-      const res = await signInAnonymously(auth);
-      if (res.user) {
-        await updateProfile(res.user, {
-          displayName: lang === 'ar' ? 'زائر Lost' : 'Lost Guest'
-        });
-      }
-    } catch (err: any) {
-      console.error("Guest login failed", err);
-      setAuthError(lang === 'ar' ? 'تعذر تسجيل الدخول كزائر.' : 'Guest login failed.');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  }, [isLoggingIn, lang]);
-
-  const handleLogin = useCallback(async () => {
-    if (isLoggingIn) return;
-    setIsLoggingIn(true);
-    setAuthError(null);
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      console.error("Login failed", error);
-      const code = error?.code || '';
-      
-      // Automatic fallback to Anonymous/Guest login if domain or popup is restricted
-      if (code === 'auth/unauthorized-domain' || code === 'auth/operation-not-allowed' || code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
-        try {
-          console.log("Attempting seamless guest auth fallback due to popup restriction...");
-          const res = await signInAnonymously(auth);
-          if (res.user) {
-            await updateProfile(res.user, {
-              displayName: lang === 'ar' ? 'زائر Lost' : 'Lost Guest'
-            });
-          }
-          setAuthError(null);
-          setIsLoggingIn(false);
-          return;
-        } catch (anonError) {
-          console.error("Anonymous fallback failed", anonError);
-        }
-      }
-
-      let msg = '';
-      if (code === 'auth/popup-closed-by-user') {
-        msg = lang === 'ar' ? 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.' : 'Sign-in popup was closed.';
-      } else if (code === 'auth/cancelled-popup-request') {
-        msg = lang === 'ar' ? 'تم إلغاء طلب تسجيل الدخول.' : 'Sign-in request was cancelled.';
-      } else if (code === 'auth/popup-blocked') {
-        msg = lang === 'ar' 
-          ? 'قام المتصفح بحظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة (Popups) للموقع أو استخدام الدخول السريع.' 
-          : 'Popup was blocked by your browser. Please allow popups or use quick sign-in.';
-      } else if (code === 'auth/unauthorized-domain') {
-        msg = lang === 'ar' 
-          ? 'هذا النطاق غير مصرح به في إعدادات Google OAuth الخاصة بـ Firebase. يمكنك استخدام الدخول السريع كزائر أو فتح الموقع في تبويب مستقل.' 
-          : 'This domain is not authorized in Firebase OAuth. You can use quick guest login or open in a new tab.';
-      } else if (code === 'auth/operation-not-allowed') {
-        msg = lang === 'ar' 
-          ? 'تسجيل الدخول بـ Google غير مفعّل في إعدادات Firebase.' 
-          : 'Google provider is disabled in Firebase Console.';
-      } else if (code === 'auth/network-request-failed') {
-        msg = lang === 'ar' 
-          ? 'فشل الاتصال بالشبكة. يرجى التأكد من اتصال الإنترنت ثم المحاولة مجدداً.' 
-          : 'Network request failed. Please check your connection and retry.';
-      } else {
-        const errorDetail = error?.message ? `: ${error.message}` : (code ? ` (${code})` : '');
-        msg = lang === 'ar' 
-          ? `حدث خطأ أثناء تسجيل الدخول${errorDetail}.` 
-          : `An error occurred during login${errorDetail}.`;
-      }
-      setAuthError(msg);
-      setTimeout(() => setAuthError(null), 12000);
-    } finally {
-      setIsLoggingIn(false);
-    }
-  }, [isLoggingIn, lang]);
+  const handleLogin = useCallback(() => {
+    setIsAuthModalOpen(true);
+  }, []);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -2306,22 +2488,6 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
               <span className="leading-relaxed text-red-100">{authError}</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <button 
-                onClick={handleQuickGuestLogin}
-                className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-200 border border-emerald-500/30 text-[10px] font-black rounded-xl transition-all whitespace-nowrap active:scale-95 flex items-center gap-1"
-              >
-                <Zap size={12} className="text-emerald-400" />
-                {lang === 'ar' ? 'دخول سريع كزائر' : 'Quick Guest Sign-in'}
-              </button>
-              <a 
-                href={window.location.href} 
-                target="_blank" 
-                rel="noreferrer"
-                className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-500/30 text-[10px] font-black rounded-xl transition-all whitespace-nowrap active:scale-95 flex items-center gap-1"
-              >
-                <Globe size={12} />
-                {lang === 'ar' ? 'فتح بتبويب جديد' : 'New Tab'}
-              </a>
               <button 
                 onClick={() => setAuthError(null)}
                 className="p-1.5 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
@@ -3765,7 +3931,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                 <motion.div 
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mb-8 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col items-stretch gap-4 text-amber-400"
+                  className="mb-8 p-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-amber-400"
                 >
                   <div className="flex items-center gap-3">
                     <AlertCircle size={24} className="shrink-0 text-amber-400" />
@@ -3775,29 +3941,18 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                       </p>
                       <p className="text-[11px] text-amber-300/80 mt-0.5">
                         {lang === 'ar' 
-                          ? 'اختر طريقة تسجيل الدخول المفضل لديك لإبراز طلبك وإتمامه بنجاح.' 
-                          : 'Choose your preferred login method to complete your order.'}
+                          ? 'يرجى تسجيل الدخول أو إنشاء حساب جديد لتأكيد طلبك وتتبعه بسهولة.' 
+                          : 'Please sign in or create an account to complete and track your order.'}
                       </p>
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3 justify-end pt-2 border-t border-amber-500/20">
-                    <button 
-                      onClick={handleQuickGuestLogin}
-                      disabled={isLoggingIn}
-                      className="px-4 py-2.5 bg-emerald-500 text-black text-xs font-black uppercase rounded-xl hover:bg-emerald-400 transition-all active:scale-95 shadow-lg shadow-emerald-500/20 flex items-center gap-2"
-                    >
-                      <Zap size={14} />
-                      {lang === 'ar' ? 'دخول سريع (زائر)' : 'Quick Guest Sign In'}
-                    </button>
-                    <button 
-                      onClick={handleLogin}
-                      disabled={isLoggingIn}
-                      className="px-4 py-2.5 bg-amber-500 text-black text-xs font-black uppercase rounded-xl hover:bg-amber-400 transition-all active:scale-95 shadow-lg shadow-amber-500/20 flex items-center gap-2"
-                    >
-                      <UserIcon size={14} className={isLoggingIn ? 'animate-spin' : ''} />
-                      {isLoggingIn ? (lang === 'ar' ? 'جاري التسجيل...' : 'Signing in...') : (lang === 'ar' ? 'تسجيل عبر Google' : 'Sign In with Google')}
-                    </button>
-                  </div>
+                  <button 
+                    onClick={handleLogin}
+                    className="px-5 py-2.5 bg-amber-500 text-black text-xs font-black uppercase rounded-xl hover:bg-amber-400 transition-all shrink-0 active:scale-95 shadow-lg shadow-amber-500/20 flex items-center gap-2 whitespace-nowrap"
+                  >
+                    <UserIcon size={14} />
+                    {lang === 'ar' ? 'تسجيل الدخول / إنشاء حساب' : 'Sign In / Register'}
+                  </button>
                 </motion.div>
               )}
 
@@ -4334,6 +4489,13 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             addToCart={addToCart} 
             getDisplayPrice={getDisplayPrice} 
             orders={orders}
+          />
+        )}
+        {isAuthModalOpen && (
+          <AuthModal 
+            isOpen={isAuthModalOpen} 
+            onClose={() => setIsAuthModalOpen(false)} 
+            lang={lang} 
           />
         )}
       </AnimatePresence>
