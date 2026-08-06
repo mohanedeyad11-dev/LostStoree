@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, ChangeEvent, FormEvent, useRef, useMemo, useCallback, RefObject } from 'react';
+import { useState, useEffect, ChangeEvent, useRef, useMemo, useCallback, RefObject } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Globe, 
@@ -36,9 +36,6 @@ import {
   Minus,
   Package,
   Mail,
-  Lock,
-  LogIn,
-  UserPlus,
   CreditCard,
   Star,
   Tv,
@@ -46,16 +43,14 @@ import {
   Share2,
   Heart,
   ShieldCheck,
-  AlertTriangle,
-  ExternalLink
+  AlertTriangle
 } from 'lucide-react';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { 
   auth, 
   db, 
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  updateProfile,
+  signInWithPopup, 
+  googleProvider, 
   signOut, 
   onAuthStateChanged,
   collection,
@@ -1678,431 +1673,14 @@ const DeliverySection = ({ order, t, onUpdate }: { order: any, t: any, onUpdate:
   );
 };
 
-const ADMIN_EMAILS = ['salamehmhnd1@gmail.com', 'mohaned.eyad11@gmail.com', 'loststore.jo@gmail.com'];
+const ADMIN_EMAILS = ['salamehmhnd@gmail.com', 'mohaned.eyad11@gmail.com'];
 const isAdminEmail = (email?: string | null) => !!email && ADMIN_EMAILS.includes(email.toLowerCase());
-
-interface AuthModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  lang: Language;
-}
-
-function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSuccess?: () => void }) {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [step, setStep] = useState<'email' | 'code'>('email');
-  const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwuRDNn4sd1SDonqKD2N7lWZW16ewiuLfanz2h0T4xggq4vavovLmKtxVjiujnAZ75oNA/exec';
-
-  if (!isOpen) return null;
-
-  const handleSendCode = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-
-    if (!email || !email.trim()) {
-      setError(lang === 'ar' ? 'يرجى إدخال البريد الإلكتروني.' : 'Please enter your email address.');
-      return;
-    }
-
-    if (mode === 'signup' && !displayName.trim()) {
-      setError(lang === 'ar' ? 'يرجى إدخال حسابك في انستغرام لتسليمك الطلب.' : 'Please enter your Instagram account for order delivery.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const trimmedEmail = email.trim();
-      const queryUrl = `${GAS_URL}?action=sendCode&email=${encodeURIComponent(trimmedEmail)}`;
-
-      let response: Response | null = null;
-      let data: any = {};
-
-      // Send POST request as requested
-      try {
-        response = await fetch(queryUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'sendCode', email: trimmedEmail })
-        });
-        try {
-          data = await response.json();
-        } catch (parseErr) {
-          console.warn("GAS POST response json parse warning:", parseErr);
-        }
-      } catch (postErr) {
-        console.warn("POST sendCode failed, attempting GET fallback:", postErr);
-      }
-
-      // If POST didn't return valid response object, try GET as fallback
-      if (!data || (!data.status && !data.success && !data.result)) {
-        try {
-          response = await fetch(queryUrl, { method: 'GET' });
-          try {
-            data = await response.json();
-          } catch {
-            data = {};
-          }
-        } catch (getErr) {
-          console.warn("GET sendCode fallback error:", getErr);
-        }
-      }
-
-      if (data.status === 'error' || data.error) {
-        setError(data.message || data.error || (lang === 'ar' ? 'فشل إرسال كود التحقق. يرجى التأكد من البريد الإلكتروني والإعدادات.' : 'Failed to send verification code. Please check your email and settings.'));
-      } else {
-        setStep('code');
-        setSuccessMsg(lang === 'ar' ? 'تم إرسال كود التحقق إلى بريدك الإلكتروني بنجاح (افحص صندوق الوارد والبريد العشوائي Spam).' : 'Verification code sent! Please check your Inbox and Spam folder.');
-      }
-    } catch (err: any) {
-      console.error("Send code error:", err);
-      setError(lang === 'ar' ? 'حدث خطأ أثناء إرسال الكود. يرجى التأكد من البريد الإلكتروني والمحاولة مجدداً.' : 'Error sending code. Please check your email and try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyCode = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
-
-    if (!code || !code.trim()) {
-      setError(lang === 'ar' ? 'يرجى إدخال كود التحقق المكون من 6 أرقام.' : 'Please enter the 6-digit verification code.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const trimmedEmail = email.trim();
-      const trimmedCode = code.trim();
-      const queryUrl = `${GAS_URL}?action=verifyCode&email=${encodeURIComponent(trimmedEmail)}&code=${encodeURIComponent(trimmedCode)}`;
-
-      let response: Response | null = null;
-      let data: any = {};
-
-      // Send POST request as requested
-      try {
-        response = await fetch(queryUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'verifyCode', email: trimmedEmail, code: trimmedCode })
-        });
-        try {
-          data = await response.json();
-        } catch (parseErr) {
-          console.warn("GAS POST response json parse warning:", parseErr);
-        }
-      } catch (postErr) {
-        console.warn("POST verifyCode failed, attempting GET fallback:", postErr);
-      }
-
-      // If POST didn't return valid response object, try GET as fallback
-      if (!data || (!data.status && !data.success && !data.result)) {
-        try {
-          response = await fetch(queryUrl, { method: 'GET' });
-          try {
-            data = await response.json();
-          } catch {
-            data = {};
-          }
-        } catch (getErr) {
-          console.warn("GET verifyCode fallback error:", getErr);
-        }
-      }
-
-      const isSuccess = data.status === 'success' || data.success === true || data.result === 'success' || (response && response.ok && !data.error && data.status !== 'error');
-
-      if (!isSuccess && (data.status === 'error' || data.error || data.message?.includes('incorrect') || data.message?.includes('invalid'))) {
-        setError(data.message || data.error || (lang === 'ar' ? 'كود التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired verification code.'));
-        setLoading(false);
-        return;
-      }
-
-      // Save login session in localStorage as requested
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('userEmail', trimmedEmail);
-
-      // Verification successful! Sync user with Firebase Auth
-      const defaultPassword = `LostApp2026!${trimmedEmail}`;
-      try {
-        if (mode === 'signup') {
-          try {
-            const res = await createUserWithEmailAndPassword(auth, trimmedEmail, defaultPassword);
-            if (res.user) {
-              if (displayName.trim()) {
-                await updateProfile(res.user, { displayName: displayName.trim() });
-              }
-              await setDoc(doc(db, 'users', res.user.uid), {
-                uid: res.user.uid,
-                email: res.user.email,
-                displayName: displayName.trim() || 'مستخدم Lost',
-                photoURL: null,
-                role: 'user'
-              }, { merge: true });
-            }
-          } catch (authErr: any) {
-            const res = await signInWithEmailAndPassword(auth, trimmedEmail, defaultPassword);
-            if (res.user && displayName.trim()) {
-              await updateProfile(res.user, { displayName: displayName.trim() });
-              await setDoc(doc(db, 'users', res.user.uid), {
-                displayName: displayName.trim()
-              }, { merge: true });
-            }
-          }
-        } else {
-          try {
-            await signInWithEmailAndPassword(auth, trimmedEmail, defaultPassword);
-          } catch (signInErr: any) {
-            const res = await createUserWithEmailAndPassword(auth, trimmedEmail, defaultPassword);
-            if (res.user) {
-              await setDoc(doc(db, 'users', res.user.uid), {
-                uid: res.user.uid,
-                email: res.user.email,
-                displayName: res.user.displayName || 'مستخدم Lost',
-                photoURL: null,
-                role: 'user'
-              }, { merge: true });
-            }
-          }
-        }
-      } catch (syncErr) {
-        console.warn("User auth sync notice:", syncErr);
-      }
-
-      if (onSuccess) {
-        onSuccess();
-      }
-      onClose();
-    } catch (err: any) {
-      console.error("Verify code error:", err);
-      setError(lang === 'ar' ? 'حدث خطأ أثناء التأكد من الكود. يرجى المحاولة مرة أخرى.' : 'Error verifying code. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-      className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4"
-    >
-      <motion.div 
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md bg-dark-void border border-violet-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden text-right"
-      >
-        <button 
-          onClick={onClose}
-          className="absolute top-5 left-5 p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all"
-        >
-          <X size={20} />
-        </button>
-
-        {/* Header Branding */}
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-black italic tracking-wider text-white uppercase">
-            <span className="text-violet-500">LO</span>ST
-          </h2>
-          <p className="text-xs text-slate-400 mt-1 font-semibold">
-            {mode === 'login' 
-              ? (lang === 'ar' ? 'تسجيل الدخول عبر كود التحقق' : 'Sign in with Verification Code') 
-              : (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create a New Account')}
-          </p>
-        </div>
-
-        {/* Tab switcher */}
-        <div className="flex bg-white/5 p-1 rounded-2xl mb-6 border border-white/5">
-          <button 
-            type="button"
-            onClick={() => { setMode('login'); setStep('email'); setError(null); setSuccessMsg(null); }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${mode === 'login' ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30' : 'text-slate-400 hover:text-white'}`}
-          >
-            {lang === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
-          </button>
-          <button 
-            type="button"
-            onClick={() => { setMode('signup'); setStep('email'); setError(null); setSuccessMsg(null); }}
-            className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${mode === 'signup' ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30' : 'text-slate-400 hover:text-white'}`}
-          >
-            {lang === 'ar' ? 'حساب جديد' : 'Sign Up'}
-          </button>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2 font-medium">
-            <AlertCircle size={18} className="shrink-0 text-red-400" />
-            <span className="leading-relaxed flex-1">{error}</span>
-          </div>
-        )}
-
-        {successMsg && (
-          <div className="mb-4 p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs flex items-center gap-2 font-medium">
-            <CheckCircle2 size={18} className="shrink-0 text-emerald-400" />
-            <span className="leading-relaxed flex-1">{successMsg}</span>
-          </div>
-        )}
-
-        {step === 'email' ? (
-          <form onSubmit={handleSendCode} className="space-y-4">
-            {mode === 'signup' && (
-              <div>
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                  {lang === 'ar' ? 'حسابك انستا' : 'Instagram Account'}
-                </label>
-                <div className="relative">
-                  <input 
-                    type="text"
-                    required
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder={lang === 'ar' ? 'لتسليمك الطلب (مثال: @username)' : 'For order delivery (e.g. @username)'}
-                    className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
-                  />
-                  <Instagram size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                {lang === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}
-              </label>
-              <div className="relative">
-                <input 
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
-                />
-                <Mail size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
-              </div>
-            </div>
-
-            <button 
-              type="submit"
-              disabled={loading}
-              className="w-full py-3.5 bg-violet-600 hover:bg-violet-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 mt-2 active:scale-95 cursor-pointer disabled:opacity-50"
-            >
-              {loading ? (
-                <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-              ) : (
-                <>
-                  <Mail size={16} />
-                  {lang === 'ar' ? 'إرسال كود التحقق' : 'Send Verification Code'}
-                </>
-              )}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleVerifyCode} className="space-y-4">
-            <div className="p-3 bg-white/5 border border-white/10 rounded-2xl text-center mb-2">
-              <p className="text-[11px] text-slate-400">
-                {lang === 'ar' ? 'تم إرسال كود التحقق إلى البريد:' : 'Verification code sent to:'}
-              </p>
-              <p className="text-xs font-bold text-violet-400 font-mono mt-0.5">{email}</p>
-            </div>
-
-            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-300 text-xs flex items-start gap-2 leading-relaxed">
-              <AlertCircle size={16} className="shrink-0 text-amber-400 mt-0.5" />
-              <div>
-                <p className="font-bold">
-                  {lang === 'ar' ? 'لم يصلك الكود؟' : 'Code not in inbox?'}
-                </p>
-                <p className="text-[11px] text-amber-200/90 mt-0.5">
-                  {lang === 'ar' 
-                    ? 'تفقّد خانة الرسائل غير المرغوب فيها (Spam / Junk) أو البريد العشوائي، حيث تصل بعض الرسائل هناك.' 
-                    : 'Please check your Spam / Junk folder as messages may sometimes arrive there.'}
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
-                  {lang === 'ar' ? 'كود التحقق (6 أرقام)' : 'Verification Code (6 digits)'}
-                </label>
-                <button
-                  type="button"
-                  onClick={() => { setStep('email'); setError(null); setSuccessMsg(null); }}
-                  className="text-[10px] text-violet-400 hover:text-violet-300 font-bold underline cursor-pointer"
-                >
-                  {lang === 'ar' ? 'تغيير البريد' : 'Change Email'}
-                </button>
-              </div>
-              <div className="relative">
-                <input 
-                  type="text"
-                  required
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="123456"
-                  className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-center text-lg font-mono tracking-[0.5em] text-white outline-none transition-all pr-10"
-                />
-                <ShieldCheck size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
-              </div>
-            </div>
-
-            <button 
-              type="submit"
-              disabled={loading || code.length < 6}
-              className="w-full py-3.5 bg-violet-600 hover:bg-violet-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 mt-2 active:scale-95 cursor-pointer disabled:opacity-50"
-            >
-              {loading ? (
-                <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-              ) : (
-                <>
-                  <CheckCircle2 size={16} />
-                  {lang === 'ar' ? 'تأكيد الدخول' : 'Confirm Login'}
-                </>
-              )}
-            </button>
-          </form>
-        )}
-      </motion.div>
-    </motion.div>
-  );
-}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [localLoggedIn, setLocalLoggedIn] = useState<boolean>(() => localStorage.getItem('isLoggedIn') === 'true');
-  const [localUserEmail, setLocalUserEmail] = useState<string | null>(() => localStorage.getItem('userEmail'));
-
-  useEffect(() => {
-    const syncLocalStorage = () => {
-      const isLogged = localStorage.getItem('isLoggedIn') === 'true';
-      const storedEmail = localStorage.getItem('userEmail');
-      setLocalLoggedIn(isLogged);
-      setLocalUserEmail(storedEmail);
-    };
-
-    syncLocalStorage();
-    window.addEventListener('storage', syncLocalStorage);
-    return () => window.removeEventListener('storage', syncLocalStorage);
-  }, []);
-
-  const isLoggedIn = !!user || localLoggedIn;
-  const currentEmail = user?.email || localUserEmail || '';
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [gameRequests, setGameRequests] = useState<any[]>([]);
-  const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
-  const [adminSubTab, setAdminSubTab] = useState<'orders' | 'requests' | 'users'>('orders');
+  const [adminSubTab, setAdminSubTab] = useState<'orders' | 'requests'>('orders');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [lang, setLang] = useState<Language>('ar');
@@ -2177,27 +1755,16 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        localStorage.setItem('isLoggedIn', 'true');
-        if (currentUser.email) {
-          localStorage.setItem('userEmail', currentUser.email);
-          setLocalUserEmail(currentUser.email);
-        }
-        setLocalLoggedIn(true);
-        // Sync user to Firestore - Use setDoc with merge to preserve roles and track lastLoginAt
+        // Sync user to Firestore - Use setDoc with merge to preserve roles
         setDoc(doc(db, 'users', currentUser.uid), {
           uid: currentUser.uid,
-          email: currentUser.email || `${currentUser.uid.substring(0, 8)}@user.lost`,
-          displayName: currentUser.displayName || 'مستخدم Lost',
-          photoURL: currentUser.photoURL || null,
-          role: 'user', // Default role
-          lastLoginAt: Timestamp.now()
+          email: currentUser.email,
+          displayName: currentUser.displayName,
+          photoURL: currentUser.photoURL,
+          role: 'user' // Default role, firestore rules prevent self-escalation
         }, { merge: true }).catch((error) => {
-          console.warn("User sync notice:", error);
+          console.error("User sync failed", error);
         });
-      } else {
-        const isLogged = localStorage.getItem('isLoggedIn') === 'true';
-        setLocalLoggedIn(isLogged);
-        setLocalUserEmail(localStorage.getItem('userEmail'));
       }
     });
 
@@ -2207,12 +1774,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user && user.uid) {
+    if (user) {
       const isAdmin = isAdminEmail(user.email);
       const path = 'orders';
       const q = isAdmin 
         ? query(collection(db, path), orderBy('createdAt', 'desc'))
-        : query(collection(db, path), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+        : query(
+            collection(db, path),
+            where('userId', '==', user.uid),
+            orderBy('createdAt', 'desc')
+          );
           
       const unsubscribeOrders = onSnapshot(q, (snapshot) => {
         const ordersData = snapshot.docs.map(doc => ({
@@ -2230,7 +1801,7 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (user && user.email && isAdminEmail(user.email)) {
+    if (user && isAdminEmail(user.email)) {
       const path = 'game_requests';
       const q = query(collection(db, path), orderBy('createdAt', 'desc'));
       const unsubscribeRequests = onSnapshot(q, (snapshot) => {
@@ -2247,47 +1818,6 @@ export default function App() {
       setGameRequests([]);
     }
   }, [user]);
-
-  useEffect(() => {
-    if (user && user.email && isAdminEmail(user.email)) {
-      const path = 'users';
-      const q = query(collection(db, path));
-      const unsubscribeUsers = onSnapshot(q, (snapshot) => {
-        const usersData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setRegisteredUsers(usersData);
-      }, (error) => {
-        handleFirestoreError(error, OperationType.LIST, path);
-      });
-      return () => unsubscribeUsers();
-    } else {
-      setRegisteredUsers([]);
-    }
-  }, [user]);
-
-  const deleteRegisteredUser = async (userId: string) => {
-    setRegisteredUsers(prev => prev.filter(u => u.id !== userId));
-    const path = `users/${userId}`;
-    try {
-      await deleteDoc(doc(db, 'users', userId));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
-    }
-  };
-
-  const clearAllPreviousUsers = async () => {
-    if (!window.confirm(lang === 'ar' ? 'هل أنت تأكد من مسح جميع الإيميلات المسجلة سابقاً؟' : 'Are you sure you want to clear all registered emails?')) return;
-    for (const u of registeredUsers) {
-      try {
-        await deleteDoc(doc(db, 'users', u.id));
-      } catch (e) {
-        console.warn("User deletion error:", u.id, e);
-      }
-    }
-    setRegisteredUsers([]);
-  };
 
   const updateGameRequestStatus = async (requestId: string, newStatus: string) => {
     setGameRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: newStatus } : r));
@@ -2356,23 +1886,55 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
     }
   };
 
-  const handleLogin = useCallback(() => {
-    setIsAuthModalOpen(true);
-  }, []);
+  const handleLogin = useCallback(async () => {
+    if (isLoggingIn) return;
+    setIsLoggingIn(true);
+    setAuthError(null);
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (error: any) {
+      console.error("Login failed", error);
+      const code = error?.code || '';
+      let msg = '';
+      if (code === 'auth/popup-closed-by-user') {
+        msg = lang === 'ar' ? 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.' : 'Sign-in popup was closed.';
+      } else if (code === 'auth/cancelled-popup-request') {
+        msg = lang === 'ar' ? 'تم إلغاء طلب تسجيل الدخول.' : 'Sign-in request was cancelled.';
+      } else if (code === 'auth/popup-blocked') {
+        msg = lang === 'ar' 
+          ? 'قام المتصفح بحظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة (Popups) للموقع أو فتح الموقع في تبويب جديد.' 
+          : 'Popup was blocked by your browser. Please allow popups or open in a new tab.';
+      } else if (code === 'auth/unauthorized-domain') {
+        msg = lang === 'ar' 
+          ? 'هذا النطاق غير مصرح به في إعدادات Firebase Auth. يرجى فتح التطبيق في تبويب جديد.' 
+          : 'This domain is not authorized in Firebase Auth. Please open the app in a new tab.';
+      } else if (code === 'auth/operation-not-allowed') {
+        msg = lang === 'ar' 
+          ? 'تسجيل الدخول بـ Google غير مفعّل في إعدادات Firebase.' 
+          : 'Google provider is disabled in Firebase Console.';
+      } else if (code === 'auth/network-request-failed') {
+        msg = lang === 'ar' 
+          ? 'فشل الاتصال بالشبكة. يرجى التأكد من اتصال الإنترنت ثم المحاولة مجدداً.' 
+          : 'Network request failed. Please check your connection and retry.';
+      } else {
+        const errorDetail = error?.message ? `: ${error.message}` : (code ? ` (${code})` : '');
+        msg = lang === 'ar' 
+          ? `حدث خطأ أثناء تسجيل الدخول${errorDetail}. جرب فتح الموقع في تبويب مستقل.` 
+          : `An error occurred during login${errorDetail}. Try opening the site in a new tab.`;
+      }
+      setAuthError(msg);
+      setTimeout(() => setAuthError(null), 12000);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }, [isLoggingIn, lang]);
 
   const handleLogout = useCallback(async () => {
     try {
-      localStorage.removeItem('isLoggedIn');
-      localStorage.removeItem('userEmail');
-      setLocalLoggedIn(false);
-      setLocalUserEmail(null);
       await signOut(auth);
+      setCurrentView('home');
     } catch (error) {
       console.error("Logout failed", error);
-      localStorage.removeItem('isLoggedIn');
-      localStorage.removeItem('userEmail');
-    } finally {
-      window.location.reload();
     }
   }, []);
 
@@ -2382,7 +1944,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
   }, [cart, discount]);
 
   const handleConfirmPayment = useCallback(async (paypalOrderId?: string) => {
-    if (!isLoggedIn) {
+    if (!user) {
       const msg = lang === 'ar' 
         ? 'يرجى تسجيل الدخول بحسابك أولاً لإكمال الطلب.' 
         : 'Please sign in to your account first to complete the order.';
@@ -2394,7 +1956,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
     // If it's PayPal, we MUST have a confirmed PayPal Order ID
     if (paymentMethod === 'paypal' && !paypalOrderId) return;
 
-    if (paymentMethod && (screenshot || paymentMethod === 'paypal' || paymentMethod === 'usdt') && isLoggedIn && !isSubmitting) {
+    if (paymentMethod && (screenshot || paymentMethod === 'paypal' || paymentMethod === 'usdt') && user && !isSubmitting) {
       setIsSubmitting(true);
       try {
         let screenshotBase64 = null;
@@ -2479,10 +2041,9 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
         try {
           await setDoc(doc(db, 'orders', shortOrderId), {
             id: shortOrderId,
-            userId: user?.uid || `user_${currentEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
-            userEmail: user?.email || currentEmail,
-            instaUser: user?.displayName || instaHandles || null,
-            userDisplayName: user?.displayName || currentEmail || null,
+            userId: user.uid,
+            userEmail: user.email,
+            instaUser: instaHandles || null,
             items: cart.map(item => ({ 
               id: item.id, 
               name: item.name, 
@@ -2705,6 +2266,15 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
               <span className="leading-relaxed text-red-100">{authError}</span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <a 
+                href={window.location.href} 
+                target="_blank" 
+                rel="noreferrer"
+                className="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-500/30 text-[10px] font-black rounded-xl transition-all whitespace-nowrap active:scale-95 flex items-center gap-1"
+              >
+                <Globe size={12} />
+                {lang === 'ar' ? 'فتح بتبويب جديد' : 'New Tab'}
+              </a>
               <button 
                 onClick={() => setAuthError(null)}
                 className="p-1.5 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
@@ -2766,9 +2336,9 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
           <div className="flex items-center gap-1 sm:gap-6">
             {/* Action Buttons (Login/Orders) - Shown prominently on mobile too */}
             <div className="flex items-center gap-1 sm:gap-4">
-              {isLoggedIn ? (
+              {user ? (
                 <>
-                  {isAdminEmail(currentEmail) && (
+                  {isAdminEmail(user.email) && (
                     <button 
                       onClick={() => setCurrentView('admin')}
                       className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-md border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-all text-xs font-bold uppercase"
@@ -2828,25 +2398,10 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                 <span className="hidden sm:inline">{currency} | {lang === 'ar' ? 'العربية' : 'EN'}</span>
               </button>
 
-              {isLoggedIn && (
-                <div className="flex items-center gap-3 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.02]">
-                  {user?.photoURL ? (
-                    <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full border border-white/10" />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-violet-600/30 border border-white/10 flex items-center justify-center text-white text-[10px] font-bold">
-                      {(user?.displayName || currentEmail || 'U')[0].toUpperCase()}
-                    </div>
-                  )}
-                  <span className="text-xs font-bold text-white/80 max-w-[160px] truncate font-mono">
-                    {user?.displayName && user.displayName !== 'مستخدم Lost'
-                      ? (user.displayName.startsWith('@') ? user.displayName : `@${user.displayName}`)
-                      : (currentEmail ? `@${currentEmail.split('@')[0]}` : '')}
-                  </span>
-                  <button 
-                    onClick={handleLogout} 
-                    title={lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
-                    className="text-white/40 hover:text-red-500 transition-colors p-1 cursor-pointer"
-                  >
+              {user && (
+                <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.02]">
+                  <img src={user.photoURL || ''} alt="" className="w-6 h-6 rounded-full border border-white/10" />
+                  <button onClick={handleLogout} className="text-white/40 hover:text-red-500 transition-colors">
                     <LogOut size={16} />
                   </button>
                 </div>
@@ -2899,30 +2454,20 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
               <div className="flex-1 overflow-y-auto z-10 scrollbar-hide">
                 {/* Account Actions */}
                 <div className="px-8 pt-4">
-                  {isLoggedIn ? (
+                  {user ? (
                     <div className="flex flex-col gap-4">
                       <div className="flex items-center justify-end gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/5">
                         <div className="text-right">
-                           <div className="text-sm font-black text-white">
-                             {user?.displayName && user.displayName !== 'مستخدم Lost'
-                               ? (user.displayName.startsWith('@') ? user.displayName : `@${user.displayName}`)
-                               : (currentEmail ? `@${currentEmail.split('@')[0]}` : '')}
-                           </div>
-                           <div className="text-xs text-white/40 font-mono">{currentEmail}</div>
+                           <div className="text-sm font-black text-white">{user.displayName}</div>
+                           <div className="text-xs text-white/40">{user.email}</div>
                         </div>
                         <div className="relative">
-                          {user?.photoURL ? (
-                            <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full border border-violet-500/20" />
-                          ) : (
-                            <div className="w-10 h-10 rounded-full bg-violet-600/30 border border-violet-500/20 flex items-center justify-center text-white text-sm font-bold">
-                              {(user?.displayName || currentEmail || 'U')[0].toUpperCase()}
-                            </div>
-                          )}
+                          <img src={user.photoURL || ''} alt="" className="w-10 h-10 rounded-full border border-violet-500/20" />
                         </div>
                       </div>
                       <button 
                         onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
-                        className="w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-black uppercase hover:bg-red-500 hover:text-white transition-all cursor-pointer"
+                        className="w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-black uppercase hover:bg-red-500 hover:text-white transition-all"
                       >
                         <LogOut size={14} />
                         {lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
@@ -2941,7 +2486,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
 
                 {/* Navigation Links */}
                 <div className="flex flex-col items-end gap-2 px-8 py-6">
-                  {isAdminEmail(currentEmail) && (
+                  {isAdminEmail(user?.email) && (
                     <motion.button 
                       whileTap={{ scale: 0.98 }}
                       onClick={() => { setCurrentView('admin'); setIsMobileMenuOpen(false); }}
@@ -3307,7 +2852,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
               <p className="text-sm font-black uppercase tracking-[0.4em] text-slate-500 italic">{t.noResults}</p>
             </motion.div>
           )}
-          <AskForGame lang={lang} userId={user?.uid} userEmail={user?.email || currentEmail} onLoginClick={handleLogin} />
+          <AskForGame lang={lang} userId={user?.uid} userEmail={user?.email} onLoginClick={handleLogin} />
         </motion.div>
       ) : currentView === 'games' ? (
         <motion.div
@@ -3370,7 +2915,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
               <p className="text-sm font-black uppercase tracking-[0.4em] text-slate-500 italic">{t.noResults}</p>
             </motion.div>
           )}
-          <AskForGame lang={lang} userId={user?.uid} userEmail={user?.email || currentEmail} onLoginClick={handleLogin} />
+          <AskForGame lang={lang} userId={user?.uid} userEmail={user?.email} onLoginClick={handleLogin} />
         </motion.div>
       ) : currentView === 'cart' ? (
         <motion.div
@@ -3677,28 +3222,6 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                   )}
                 </div>
               </button>
-              <button
-                onClick={() => setAdminSubTab('users')}
-                className={`pb-4 px-8 text-sm font-black uppercase tracking-widest relative transition-colors ${
-                  adminSubTab === 'users' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
-                }`}
-              >
-                {adminSubTab === 'users' && (
-                  <motion.div
-                    layoutId="adminActiveSubTab"
-                    className="absolute bottom-0 left-0 right-0 h-1 bg-pink-500 rounded-full"
-                  />
-                )}
-                <div className="flex items-center gap-2">
-                  <Instagram size={16} className="text-pink-400" />
-                  <span>{lang === 'ar' ? 'حسابات انستا المسجلة' : 'Registered Instagram Accounts'}</span>
-                  {registeredUsers.length > 0 && (
-                    <span className="bg-pink-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full">
-                      {registeredUsers.length}
-                    </span>
-                  )}
-                </div>
-              </button>
             </div>
 
             {adminSubTab === 'orders' && (
@@ -3839,44 +3362,17 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                                 <p className="text-xs font-bold text-white/80">{order.createdAt?.toDate().toLocaleString()}</p>
                               </div>
                             </div>
-                            {(() => {
-                              const matchedUser = registeredUsers.find(u => 
-                                (u.id && u.id === order.userId) || 
-                                (u.email && order.userEmail && u.email.toLowerCase() === order.userEmail.toLowerCase())
-                              );
-                              const instaHandle = order.instaUser || order.userDisplayName || matchedUser?.displayName || (user?.uid === order.userId ? user.displayName : null);
-                              const cleanInsta = instaHandle ? instaHandle.replace('@', '').trim() : '';
-
-                              return (
-                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:col-span-2 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-transparent p-4 rounded-2xl border border-pink-500/30">
-                                  <div className="flex items-center gap-4">
-                                    <div className="w-11 h-11 bg-gradient-to-tr from-purple-600/30 to-pink-600/30 rounded-xl flex items-center justify-center text-pink-400 border border-pink-500/40 shadow-lg shadow-pink-500/10 shrink-0">
-                                      <Instagram size={22} />
-                                    </div>
-                                    <div>
-                                      <p className="text-[9px] font-black text-pink-400 uppercase tracking-widest mb-0.5">
-                                        {lang === 'ar' ? 'حساب الإنستغرام لتسليم الطلب' : 'Instagram Account for Delivery'}
-                                      </p>
-                                      <p className="text-base font-black text-white font-mono">
-                                        {instaHandle ? (instaHandle.startsWith('@') ? instaHandle : `@${instaHandle}`) : (lang === 'ar' ? 'غير مسجل' : 'Not Provided')}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  {cleanInsta && (
-                                    <a
-                                      href={`https://instagram.com/${cleanInsta}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white font-black text-xs rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-pink-500/20 active:scale-95 shrink-0"
-                                    >
-                                      <Instagram size={14} />
-                                      <span>{lang === 'ar' ? 'فتح في إنستغرام' : 'Open in Instagram'}</span>
-                                      <ExternalLink size={12} />
-                                    </a>
-                                  )}
+                            {order.instaUser && (
+                              <div className="flex items-center gap-4 group/item sm:col-span-2 bg-pink-500/5 p-3 rounded-2xl border border-pink-500/20">
+                                <div className="w-10 h-10 bg-gradient-to-tr from-purple-600/20 to-pink-600/20 rounded-xl flex items-center justify-center text-pink-400 group-hover/item:text-pink-300 transition-colors border border-pink-500/30">
+                                  <Instagram size={18} />
                                 </div>
-                              );
-                            })()}
+                                <div>
+                                  <p className="text-[8px] font-black text-pink-400 uppercase tracking-widest mb-0.5">Instagram Account (حساب الإنستغرام)</p>
+                                  <p className="text-sm font-black text-white font-mono">{order.instaUser}</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
                           {order.txid && (
@@ -4055,110 +3551,6 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             </div>
           </div>
         )}
-
-        {adminSubTab === 'users' && (
-          <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white/[0.02] border border-white/5 p-6 rounded-3xl mb-6">
-              <div>
-                <h3 className="text-xl font-black text-white italic uppercase tracking-tight flex items-center gap-2">
-                  <Instagram className="text-pink-400" size={22} />
-                  <span>{lang === 'ar' ? 'سجل حسابات انستا والإيميلات' : 'Registered Instagram Accounts & Emails'}</span>
-                </h3>
-                <p className="text-[11px] font-medium text-slate-400 mt-1">
-                  {lang === 'ar' 
-                    ? 'تظهر هنا جميع حسابات الانستا والإيميلات التي تم التسجيل أو الدخول بها لتسليم الطلبات.' 
-                    : 'All registered Instagram handles and emails are listed here for order processing.'}
-                </p>
-              </div>
-
-              {registeredUsers.length > 0 && (
-                <button
-                  onClick={clearAllPreviousUsers}
-                  className="px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
-                >
-                  <Trash2 size={16} />
-                  <span>{lang === 'ar' ? 'حذف كافة البيانات القديمة' : 'Clear All Previous Records'}</span>
-                </button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {registeredUsers.length > 0 ? (
-                registeredUsers.map((u) => {
-                  const instaHandle = u.displayName || '';
-                  const cleanInsta = instaHandle.replace('@', '').trim();
-
-                  return (
-                    <div 
-                      key={u.id}
-                      className="bg-[#0f0f12] border border-white/[0.08] hover:border-pink-500/40 rounded-2xl p-5 transition-all flex flex-col justify-between gap-4 group relative overflow-hidden"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-pink-500/30 flex items-center justify-center text-pink-400 font-bold shrink-0 shadow-lg shadow-pink-500/10">
-                            <Instagram size={20} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[9px] font-black uppercase tracking-widest text-pink-400">
-                              {lang === 'ar' ? 'حساب الانستغرام' : 'Instagram Account'}
-                            </p>
-                            <div className="text-base font-black text-white font-mono truncate">
-                              {instaHandle ? (instaHandle.startsWith('@') ? instaHandle : `@${instaHandle}`) : (lang === 'ar' ? 'غير محدد' : 'Not specified')}
-                            </div>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => deleteRegisteredUser(u.id)}
-                          className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer shrink-0"
-                          title={lang === 'ar' ? 'حذف' : 'Delete'}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-
-                      <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-[10px] text-slate-500 font-medium">{lang === 'ar' ? 'البريد الإلكتروني:' : 'Email:'}</span>
-                          <span className="font-mono text-slate-300 font-bold truncate max-w-[170px]">{u.email || u.id}</span>
-                        </div>
-                        {u.lastLoginAt?.seconds && (
-                          <div className="flex items-center justify-between text-[10px] text-slate-500">
-                            <span>{lang === 'ar' ? 'آخر دخول:' : 'Last login:'}</span>
-                            <span>{new Date(u.lastLoginAt.seconds * 1000).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {cleanInsta && (
-                        <a
-                          href={`https://instagram.com/${cleanInsta}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="w-full py-2 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-300 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95"
-                        >
-                          <Instagram size={14} />
-                          <span>{lang === 'ar' ? 'فتح الحساب في Instagram' : 'Open in Instagram'}</span>
-                          <ExternalLink size={12} />
-                        </a>
-                      )}
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="col-span-full text-center py-20 bg-white/[0.01] border border-dashed border-white/5 rounded-3xl">
-                  <Instagram size={40} className="mx-auto text-pink-500/30 mb-3" />
-                  <h4 className="text-lg font-bold text-white mb-1">
-                    {lang === 'ar' ? 'لا توجد حسابات انستا مسجلة بعد' : 'No Instagram accounts registered yet'}
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    {lang === 'ar' ? 'سيتم إدراج أي حساب انستا يتم التسجيل به هنا تلقائياً' : 'Any Instagram account provided during signup will appear here'}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
           </div>
         </motion.div>
       ) : currentView === 'orders' ? (
@@ -4180,8 +3572,8 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
           </div>
 
           <div className="space-y-6">
-            {orders.filter(o => (user?.uid && o.userId === user.uid) || (currentEmail && o.userEmail?.toLowerCase() === currentEmail.toLowerCase())).length > 0 ? (
-              orders.filter(o => (user?.uid && o.userId === user.uid) || (currentEmail && o.userEmail?.toLowerCase() === currentEmail.toLowerCase())).map((order) => (
+            {orders.filter(o => o.userId === user?.uid).length > 0 ? (
+              orders.filter(o => o.userId === user?.uid).map((order) => (
                 <div key={order.id} className="bg-white/[0.02] border border-white/5 p-8 rounded-3xl hover:border-violet-500/20 transition-all">
                   <div className="flex flex-col md:flex-row justify-between gap-6 mb-8">
                     <div>
@@ -4332,21 +3724,22 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                     <AlertCircle size={24} className="shrink-0 text-amber-400" />
                     <div>
                       <p className="text-xs font-black uppercase tracking-wider">
-                        {lang === 'ar' ? 'تنبيه: يلزم تسجيل الدخول لإكمال الطلب' : 'Notice: Login Required First'}
+                        {lang === 'ar' ? 'تنبيه: يلزم تسجيل الدخول أولاً' : 'Notice: Login Required First'}
                       </p>
                       <p className="text-[11px] text-amber-300/80 mt-0.5">
                         {lang === 'ar' 
-                          ? 'يرجى تسجيل الدخول أو إنشاء حساب جديد لتأكيد طلبك وتتبعه بسهولة.' 
-                          : 'Please sign in or create an account to complete and track your order.'}
+                          ? 'يرجى تسجيل الدخول بحسابك لتتمكن من تأكيد الدفع وإكمال الطلب بنجاح.' 
+                          : 'Please sign in to your account before confirming payment to complete your order.'}
                       </p>
                     </div>
                   </div>
                   <button 
                     onClick={handleLogin}
-                    className="px-5 py-2.5 bg-amber-500 text-black text-xs font-black uppercase rounded-xl hover:bg-amber-400 transition-all shrink-0 active:scale-95 shadow-lg shadow-amber-500/20 flex items-center gap-2 whitespace-nowrap"
+                    disabled={isLoggingIn}
+                    className="px-5 py-2.5 bg-amber-500 text-black text-xs font-black uppercase rounded-xl hover:bg-amber-400 transition-all shrink-0 active:scale-95 shadow-lg shadow-amber-500/20 flex items-center gap-2"
                   >
-                    <UserIcon size={14} />
-                    {lang === 'ar' ? 'تسجيل الدخول / إنشاء حساب' : 'Sign In / Register'}
+                    <UserIcon size={14} className={isLoggingIn ? 'animate-spin' : ''} />
+                    {isLoggingIn ? (lang === 'ar' ? 'جاري التسجيل...' : 'Signing in...') : (lang === 'ar' ? 'تسجيل الدخول الآن' : 'Sign In Now')}
                   </button>
                 </motion.div>
               )}
@@ -4884,17 +4277,6 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             addToCart={addToCart} 
             getDisplayPrice={getDisplayPrice} 
             orders={orders}
-          />
-        )}
-        {isAuthModalOpen && (
-          <AuthModal 
-            isOpen={isAuthModalOpen} 
-            onClose={() => setIsAuthModalOpen(false)} 
-            lang={lang} 
-            onSuccess={() => {
-              setCurrentView('home');
-              setIsAuthModalOpen(false);
-            }}
           />
         )}
       </AnimatePresence>
