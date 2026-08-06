@@ -1785,6 +1785,10 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
         return;
       }
 
+      // Save login session in localStorage as requested
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userEmail', trimmedEmail);
+
       // Verification successful! Sync user with Firebase Auth
       const defaultPassword = `LostApp2026!${trimmedEmail}`;
       try {
@@ -2022,6 +2026,24 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [localLoggedIn, setLocalLoggedIn] = useState<boolean>(() => localStorage.getItem('isLoggedIn') === 'true');
+  const [localUserEmail, setLocalUserEmail] = useState<string | null>(() => localStorage.getItem('userEmail'));
+
+  useEffect(() => {
+    const syncLocalStorage = () => {
+      const isLogged = localStorage.getItem('isLoggedIn') === 'true';
+      const storedEmail = localStorage.getItem('userEmail');
+      setLocalLoggedIn(isLogged);
+      setLocalUserEmail(storedEmail);
+    };
+
+    syncLocalStorage();
+    window.addEventListener('storage', syncLocalStorage);
+    return () => window.removeEventListener('storage', syncLocalStorage);
+  }, []);
+
+  const isLoggedIn = !!user || localLoggedIn;
+  const currentEmail = user?.email || localUserEmail || '';
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [gameRequests, setGameRequests] = useState<any[]>([]);
@@ -2101,6 +2123,12 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
+        localStorage.setItem('isLoggedIn', 'true');
+        if (currentUser.email) {
+          localStorage.setItem('userEmail', currentUser.email);
+          setLocalUserEmail(currentUser.email);
+        }
+        setLocalLoggedIn(true);
         // Sync user to Firestore - Use setDoc with merge to preserve roles and track lastLoginAt
         setDoc(doc(db, 'users', currentUser.uid), {
           uid: currentUser.uid,
@@ -2112,6 +2140,10 @@ export default function App() {
         }, { merge: true }).catch((error) => {
           console.warn("User sync notice:", error);
         });
+      } else {
+        const isLogged = localStorage.getItem('isLoggedIn') === 'true';
+        setLocalLoggedIn(isLogged);
+        setLocalUserEmail(localStorage.getItem('userEmail'));
       }
     });
 
@@ -2121,16 +2153,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      const isAdmin = isAdminEmail(user.email);
+    if (isLoggedIn) {
+      const isAdmin = isAdminEmail(currentEmail);
       const path = 'orders';
       const q = isAdmin 
         ? query(collection(db, path), orderBy('createdAt', 'desc'))
-        : query(
-            collection(db, path),
-            where('userId', '==', user.uid),
-            orderBy('createdAt', 'desc')
-          );
+        : user?.uid 
+          ? query(collection(db, path), where('userId', '==', user.uid), orderBy('createdAt', 'desc'))
+          : query(collection(db, path), orderBy('createdAt', 'desc'));
           
       const unsubscribeOrders = onSnapshot(q, (snapshot) => {
         const ordersData = snapshot.docs.map(doc => ({
@@ -2145,10 +2175,10 @@ export default function App() {
     } else {
       setOrders([]);
     }
-  }, [user]);
+  }, [user, isLoggedIn, currentEmail]);
 
   useEffect(() => {
-    if (user && isAdminEmail(user.email)) {
+    if (isLoggedIn && isAdminEmail(currentEmail)) {
       const path = 'game_requests';
       const q = query(collection(db, path), orderBy('createdAt', 'desc'));
       const unsubscribeRequests = onSnapshot(q, (snapshot) => {
@@ -2164,10 +2194,10 @@ export default function App() {
     } else {
       setGameRequests([]);
     }
-  }, [user]);
+  }, [user, isLoggedIn, currentEmail]);
 
   useEffect(() => {
-    if (user && isAdminEmail(user.email)) {
+    if (isLoggedIn && isAdminEmail(currentEmail)) {
       const path = 'users';
       const q = query(collection(db, path));
       const unsubscribeUsers = onSnapshot(q, (snapshot) => {
@@ -2183,7 +2213,7 @@ export default function App() {
     } else {
       setRegisteredUsers([]);
     }
-  }, [user]);
+  }, [user, isLoggedIn, currentEmail]);
 
   const deleteRegisteredUser = async (userId: string) => {
     setRegisteredUsers(prev => prev.filter(u => u.id !== userId));
@@ -2280,10 +2310,17 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
 
   const handleLogout = useCallback(async () => {
     try {
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('userEmail');
+      setLocalLoggedIn(false);
+      setLocalUserEmail(null);
       await signOut(auth);
-      setCurrentView('home');
     } catch (error) {
       console.error("Logout failed", error);
+      localStorage.removeItem('isLoggedIn');
+      localStorage.removeItem('userEmail');
+    } finally {
+      window.location.reload();
     }
   }, []);
 
@@ -2293,7 +2330,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
   }, [cart, discount]);
 
   const handleConfirmPayment = useCallback(async (paypalOrderId?: string) => {
-    if (!user) {
+    if (!isLoggedIn) {
       const msg = lang === 'ar' 
         ? 'يرجى تسجيل الدخول بحسابك أولاً لإكمال الطلب.' 
         : 'Please sign in to your account first to complete the order.';
@@ -2305,7 +2342,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
     // If it's PayPal, we MUST have a confirmed PayPal Order ID
     if (paymentMethod === 'paypal' && !paypalOrderId) return;
 
-    if (paymentMethod && (screenshot || paymentMethod === 'paypal' || paymentMethod === 'usdt') && user && !isSubmitting) {
+    if (paymentMethod && (screenshot || paymentMethod === 'paypal' || paymentMethod === 'usdt') && isLoggedIn && !isSubmitting) {
       setIsSubmitting(true);
       try {
         let screenshotBase64 = null;
@@ -2390,10 +2427,10 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
         try {
           await setDoc(doc(db, 'orders', shortOrderId), {
             id: shortOrderId,
-            userId: user.uid,
-            userEmail: user.email,
-            instaUser: user.displayName || instaHandles || null,
-            userDisplayName: user.displayName || null,
+            userId: user?.uid || `user_${currentEmail.replace(/[^a-zA-Z0-9]/g, '_')}`,
+            userEmail: user?.email || currentEmail,
+            instaUser: user?.displayName || instaHandles || null,
+            userDisplayName: user?.displayName || currentEmail || null,
             items: cart.map(item => ({ 
               id: item.id, 
               name: item.name, 
@@ -2677,9 +2714,9 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
           <div className="flex items-center gap-1 sm:gap-6">
             {/* Action Buttons (Login/Orders) - Shown prominently on mobile too */}
             <div className="flex items-center gap-1 sm:gap-4">
-              {user ? (
+              {isLoggedIn ? (
                 <>
-                  {isAdminEmail(user.email) && (
+                  {isAdminEmail(currentEmail) && (
                     <button 
                       onClick={() => setCurrentView('admin')}
                       className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-md border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-all text-xs font-bold uppercase"
@@ -2739,16 +2776,23 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                 <span className="hidden sm:inline">{currency} | {lang === 'ar' ? 'العربية' : 'EN'}</span>
               </button>
 
-              {user && (
-                <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.02]">
-                  {user.photoURL ? (
+              {isLoggedIn && (
+                <div className="flex items-center gap-3 px-3.5 py-1.5 rounded-full border border-white/10 bg-white/[0.02]">
+                  {user?.photoURL ? (
                     <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full border border-white/10" />
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-violet-600/30 border border-white/10 flex items-center justify-center text-white text-[10px] font-bold">
-                      {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                      {(user?.displayName || currentEmail || 'U')[0].toUpperCase()}
                     </div>
                   )}
-                  <button onClick={handleLogout} className="text-white/40 hover:text-red-500 transition-colors">
+                  <span className="text-xs font-bold text-white/80 max-w-[160px] truncate font-mono">
+                    {currentEmail}
+                  </span>
+                  <button 
+                    onClick={handleLogout} 
+                    title={lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
+                    className="text-white/40 hover:text-red-500 transition-colors p-1 cursor-pointer"
+                  >
                     <LogOut size={16} />
                   </button>
                 </div>
@@ -2801,26 +2845,26 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
               <div className="flex-1 overflow-y-auto z-10 scrollbar-hide">
                 {/* Account Actions */}
                 <div className="px-8 pt-4">
-                  {user ? (
+                  {isLoggedIn ? (
                     <div className="flex flex-col gap-4">
                       <div className="flex items-center justify-end gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/5">
                         <div className="text-right">
-                           <div className="text-sm font-black text-white">{user.displayName}</div>
-                           <div className="text-xs text-white/40">{user.email}</div>
+                           <div className="text-sm font-black text-white">{user?.displayName || currentEmail}</div>
+                           <div className="text-xs text-white/40 font-mono">{currentEmail}</div>
                         </div>
                         <div className="relative">
-                          {user.photoURL ? (
+                          {user?.photoURL ? (
                             <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full border border-violet-500/20" />
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-violet-600/30 border border-violet-500/20 flex items-center justify-center text-white text-sm font-bold">
-                              {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                              {(user?.displayName || currentEmail || 'U')[0].toUpperCase()}
                             </div>
                           )}
                         </div>
                       </div>
                       <button 
                         onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }}
-                        className="w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-black uppercase hover:bg-red-500 hover:text-white transition-all"
+                        className="w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-black uppercase hover:bg-red-500 hover:text-white transition-all cursor-pointer"
                       >
                         <LogOut size={14} />
                         {lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
@@ -2839,7 +2883,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
 
                 {/* Navigation Links */}
                 <div className="flex flex-col items-end gap-2 px-8 py-6">
-                  {isAdminEmail(user?.email) && (
+                  {isAdminEmail(currentEmail) && (
                     <motion.button 
                       whileTap={{ scale: 0.98 }}
                       onClick={() => { setCurrentView('admin'); setIsMobileMenuOpen(false); }}
@@ -3205,7 +3249,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
               <p className="text-sm font-black uppercase tracking-[0.4em] text-slate-500 italic">{t.noResults}</p>
             </motion.div>
           )}
-          <AskForGame lang={lang} userId={user?.uid} userEmail={user?.email} onLoginClick={handleLogin} />
+          <AskForGame lang={lang} userId={user?.uid} userEmail={user?.email || currentEmail} onLoginClick={handleLogin} />
         </motion.div>
       ) : currentView === 'games' ? (
         <motion.div
@@ -3268,7 +3312,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
               <p className="text-sm font-black uppercase tracking-[0.4em] text-slate-500 italic">{t.noResults}</p>
             </motion.div>
           )}
-          <AskForGame lang={lang} userId={user?.uid} userEmail={user?.email} onLoginClick={handleLogin} />
+          <AskForGame lang={lang} userId={user?.uid} userEmail={user?.email || currentEmail} onLoginClick={handleLogin} />
         </motion.div>
       ) : currentView === 'cart' ? (
         <motion.div
@@ -4078,8 +4122,8 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
           </div>
 
           <div className="space-y-6">
-            {orders.filter(o => o.userId === user?.uid).length > 0 ? (
-              orders.filter(o => o.userId === user?.uid).map((order) => (
+            {orders.filter(o => (user?.uid && o.userId === user.uid) || (currentEmail && o.userEmail?.toLowerCase() === currentEmail.toLowerCase())).length > 0 ? (
+              orders.filter(o => (user?.uid && o.userId === user.uid) || (currentEmail && o.userEmail?.toLowerCase() === currentEmail.toLowerCase())).map((order) => (
                 <div key={order.id} className="bg-white/[0.02] border border-white/5 p-8 rounded-3xl hover:border-violet-500/20 transition-all">
                   <div className="flex flex-col md:flex-row justify-between gap-6 mb-8">
                     <div>
