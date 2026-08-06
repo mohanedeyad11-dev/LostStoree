@@ -1687,68 +1687,158 @@ interface AuthModalProps {
   lang: Language;
 }
 
-function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
+function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSuccess?: () => void }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbw6QQK8lifAzgk90wYIxo2oV8Fyffgp0iCSH5F2gnDSnzxfJ2tW_RqB6GTMWaV8F0GX/exec';
 
   if (!isOpen) return null;
 
-  const handleEmailAuth = async (e: FormEvent) => {
+  const handleSendCode = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!email || !password) {
-      setError(lang === 'ar' ? 'يرجى إدخال البريد الإلكتروني وكلمة المرور.' : 'Please enter email and password.');
+    setSuccessMsg(null);
+
+    if (!email || !email.trim()) {
+      setError(lang === 'ar' ? 'يرجى إدخال البريد الإلكتروني.' : 'Please enter your email address.');
       return;
     }
 
-    if (mode === 'signup' && !displayName) {
+    if (mode === 'signup' && !displayName.trim()) {
       setError(lang === 'ar' ? 'يرجى إدخال حسابك في انستغرام لتسليمك الطلب.' : 'Please enter your Instagram account for order delivery.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError(lang === 'ar' ? 'كلمة المرور يجب أن تكون 6 أحرف على الأقل.' : 'Password must be at least 6 characters.');
       return;
     }
 
     setLoading(true);
     try {
-      if (mode === 'signup') {
-        const res = await createUserWithEmailAndPassword(auth, email.trim(), password);
-        if (res.user) {
-          await updateProfile(res.user, { displayName: displayName.trim() });
-          await setDoc(doc(db, 'users', res.user.uid), {
-            uid: res.user.uid,
-            email: res.user.email,
-            displayName: displayName.trim(),
-            photoURL: null,
-            role: 'user'
-          }, { merge: true });
-        }
+      const trimmedEmail = email.trim();
+      const queryUrl = `${GAS_URL}?action=sendCode&email=${encodeURIComponent(trimmedEmail)}`;
+
+      const response = await fetch(queryUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'sendCode', email: trimmedEmail })
+      });
+
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        console.warn("GAS response json parse warning:", parseErr);
+      }
+
+      if (data.status === 'error' || data.error) {
+        setError(data.message || data.error || (lang === 'ar' ? 'فشل إرسال كود التحقق. حاول مرة أخرى.' : 'Failed to send verification code.'));
       } else {
-        await signInWithEmailAndPassword(auth, email.trim(), password);
+        setStep('code');
+        setSuccessMsg(lang === 'ar' ? 'تم إرسال كود التحقق إلى بريدك الإلكتروني بنجاح.' : 'Verification code has been sent to your email.');
+      }
+    } catch (err: any) {
+      console.error("Send code error:", err);
+      setError(lang === 'ar' ? 'حدث خطأ أثناء إرسال الكود. يرجى التأكد من البريد الإلكتروني والمحاولة مجدداً.' : 'Error sending code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
+
+    if (!code || !code.trim()) {
+      setError(lang === 'ar' ? 'يرجى إدخال كود التحقق المكون من 6 أرقام.' : 'Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const trimmedEmail = email.trim();
+      const trimmedCode = code.trim();
+      const queryUrl = `${GAS_URL}?action=verifyCode&email=${encodeURIComponent(trimmedEmail)}&code=${encodeURIComponent(trimmedCode)}`;
+
+      const response = await fetch(queryUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'verifyCode', email: trimmedEmail, code: trimmedCode })
+      });
+
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        console.warn("GAS response json parse warning:", parseErr);
+      }
+
+      const isSuccess = data.status === 'success' || data.success === true || data.result === 'success' || (response.ok && !data.error && data.status !== 'error');
+
+      if (!isSuccess && (data.status === 'error' || data.error || data.message?.includes('incorrect') || data.message?.includes('invalid'))) {
+        setError(data.message || data.error || (lang === 'ar' ? 'كود التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired verification code.'));
+        setLoading(false);
+        return;
+      }
+
+      // Verification successful! Sync user with Firebase Auth
+      const defaultPassword = `LostApp2026!${trimmedEmail}`;
+      try {
+        if (mode === 'signup') {
+          try {
+            const res = await createUserWithEmailAndPassword(auth, trimmedEmail, defaultPassword);
+            if (res.user) {
+              if (displayName.trim()) {
+                await updateProfile(res.user, { displayName: displayName.trim() });
+              }
+              await setDoc(doc(db, 'users', res.user.uid), {
+                uid: res.user.uid,
+                email: res.user.email,
+                displayName: displayName.trim() || 'مستخدم Lost',
+                photoURL: null,
+                role: 'user'
+              }, { merge: true });
+            }
+          } catch (authErr: any) {
+            const res = await signInWithEmailAndPassword(auth, trimmedEmail, defaultPassword);
+            if (res.user && displayName.trim()) {
+              await updateProfile(res.user, { displayName: displayName.trim() });
+              await setDoc(doc(db, 'users', res.user.uid), {
+                displayName: displayName.trim()
+              }, { merge: true });
+            }
+          }
+        } else {
+          try {
+            await signInWithEmailAndPassword(auth, trimmedEmail, defaultPassword);
+          } catch (signInErr: any) {
+            const res = await createUserWithEmailAndPassword(auth, trimmedEmail, defaultPassword);
+            if (res.user) {
+              await setDoc(doc(db, 'users', res.user.uid), {
+                uid: res.user.uid,
+                email: res.user.email,
+                displayName: res.user.displayName || 'مستخدم Lost',
+                photoURL: null,
+                role: 'user'
+              }, { merge: true });
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.warn("User auth sync notice:", syncErr);
+      }
+
+      if (onSuccess) {
+        onSuccess();
       }
       onClose();
     } catch (err: any) {
-      console.warn("Auth status:", err?.code || err?.message);
-      const code = err?.code || err?.message || '';
-      if (code.includes('auth/email-already-in-use')) {
-        setError(lang === 'ar' ? 'هذا البريد الإلكتروني مستخدم بالفعل. يمكنك تسجيل الدخول بنفس الحساب.' : 'Email is already in use. Please sign in with your password.');
-      } else if (code.includes('auth/user-not-found') || code.includes('auth/wrong-password') || code.includes('auth/invalid-credential')) {
-        setError(lang === 'ar' ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect email or password.');
-      } else if (code.includes('auth/invalid-email')) {
-        setError(lang === 'ar' ? 'عنوان البريد الإلكتروني غير صحيح.' : 'Invalid email address format.');
-      } else if (code.includes('auth/weak-password')) {
-        setError(lang === 'ar' ? 'كلمة المرور ضعيفة جداً (6 أحرف على الأقل).' : 'Weak password. Must be at least 6 characters.');
-      } else if (code.includes('auth/too-many-requests')) {
-        setError(lang === 'ar' ? 'تم تعليق المحاولات المؤقتة بسبب تكرار البيانات الخاطئة. يرجى الانتظار قليلاً.' : 'Too many failed login attempts. Please try again later.');
-      } else {
-        setError(lang === 'ar' ? 'حدث خطأ أثناء عملية المصادقة. يرجى التأكد من البيانات المدخلة.' : 'Authentication error. Please check your credentials.');
-      }
+      console.error("Verify code error:", err);
+      setError(lang === 'ar' ? 'حدث خطأ أثناء التأكد من الكود. يرجى المحاولة مرة أخرى.' : 'Error verifying code. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -1783,8 +1873,8 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
           </h2>
           <p className="text-xs text-slate-400 mt-1 font-semibold">
             {mode === 'login' 
-              ? (lang === 'ar' ? 'تسجيل الدخول إلى حسابك' : 'Sign in to your account') 
-              : (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create a new account')}
+              ? (lang === 'ar' ? 'تسجيل الدخول عبر كود التحقق' : 'Sign in with Verification Code') 
+              : (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create a New Account')}
           </p>
         </div>
 
@@ -1792,14 +1882,14 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
         <div className="flex bg-white/5 p-1 rounded-2xl mb-6 border border-white/5">
           <button 
             type="button"
-            onClick={() => { setMode('login'); setError(null); }}
+            onClick={() => { setMode('login'); setStep('email'); setError(null); setSuccessMsg(null); }}
             className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${mode === 'login' ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30' : 'text-slate-400 hover:text-white'}`}
           >
             {lang === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
           </button>
           <button 
             type="button"
-            onClick={() => { setMode('signup'); setError(null); }}
+            onClick={() => { setMode('signup'); setStep('email'); setError(null); setSuccessMsg(null); }}
             className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${mode === 'signup' ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/30' : 'text-slate-400 hover:text-white'}`}
           >
             {lang === 'ar' ? 'حساب جديد' : 'Sign Up'}
@@ -1807,107 +1897,124 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
         </div>
 
         {error && (
-          <div className="mb-4 p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex flex-col gap-2 font-medium">
-            <div className="flex items-center gap-2">
-              <AlertCircle size={18} className="shrink-0 text-red-400" />
-              <span className="leading-relaxed flex-1">{error}</span>
-            </div>
-            {mode === 'signup' && (error.includes('مستخدم بالفعل') || error.includes('already in use')) && (
-              <button
-                type="button"
-                onClick={() => { setMode('login'); setError(null); }}
-                className="text-[11px] font-bold text-violet-400 hover:text-violet-300 underline self-start cursor-pointer mt-1"
-              >
-                {lang === 'ar' ? '← التبديل إلى تسجيل الدخول' : '→ Switch to Sign In'}
-              </button>
-            )}
-            {mode === 'login' && (error.includes('غير صحيحة') || error.includes('Incorrect')) && (
-              <button
-                type="button"
-                onClick={() => { setMode('signup'); setError(null); }}
-                className="text-[11px] font-bold text-violet-400 hover:text-violet-300 underline self-start cursor-pointer mt-1"
-              >
-                {lang === 'ar' ? '← ليس لديك حساب؟ إنشاء حساب جديد' : '→ Don\'t have an account? Sign Up'}
-              </button>
-            )}
+          <div className="mb-4 p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2 font-medium">
+            <AlertCircle size={18} className="shrink-0 text-red-400" />
+            <span className="leading-relaxed flex-1">{error}</span>
           </div>
         )}
 
-        {/* Email & Password Form */}
-        <form onSubmit={handleEmailAuth} className="space-y-4">
-          {mode === 'signup' && (
+        {successMsg && (
+          <div className="mb-4 p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs flex items-center gap-2 font-medium">
+            <CheckCircle2 size={18} className="shrink-0 text-emerald-400" />
+            <span className="leading-relaxed flex-1">{successMsg}</span>
+          </div>
+        )}
+
+        {step === 'email' ? (
+          <form onSubmit={handleSendCode} className="space-y-4">
+            {mode === 'signup' && (
+              <div>
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
+                  {lang === 'ar' ? 'حسابك انستا' : 'Instagram Account'}
+                </label>
+                <div className="relative">
+                  <input 
+                    type="text"
+                    required
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder={lang === 'ar' ? 'لتسليمك الطلب (مثال: @username)' : 'For order delivery (e.g. @username)'}
+                    className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
+                  />
+                  <Instagram size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                {lang === 'ar' ? 'حسابك انستا' : 'Instagram Account'}
+                {lang === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}
               </label>
+              <div className="relative">
+                <input 
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
+                />
+                <Mail size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+              </div>
+            </div>
+
+            <button 
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 bg-violet-600 hover:bg-violet-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 mt-2 active:scale-95 cursor-pointer disabled:opacity-50"
+            >
+              {loading ? (
+                <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+              ) : (
+                <>
+                  <Mail size={16} />
+                  {lang === 'ar' ? 'إرسال كود التحقق' : 'Send Verification Code'}
+                </>
+              )}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyCode} className="space-y-4">
+            <div className="p-3 bg-white/5 border border-white/10 rounded-2xl text-center mb-2">
+              <p className="text-[11px] text-slate-400">
+                {lang === 'ar' ? 'تم إرسال كود التحقق إلى البريد:' : 'Verification code sent to:'}
+              </p>
+              <p className="text-xs font-bold text-violet-400 font-mono mt-0.5">{email}</p>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  {lang === 'ar' ? 'كود التحقق (6 أرقام)' : 'Verification Code (6 digits)'}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { setStep('email'); setError(null); setSuccessMsg(null); }}
+                  className="text-[10px] text-violet-400 hover:text-violet-300 font-bold underline cursor-pointer"
+                >
+                  {lang === 'ar' ? 'تغيير البريد' : 'Change Email'}
+                </button>
+              </div>
               <div className="relative">
                 <input 
                   type="text"
                   required
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder={lang === 'ar' ? 'لتسليمك الطلب (مثال: @username)' : 'For order delivery (e.g. @username)'}
-                  className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="123456"
+                  className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-center text-lg font-mono tracking-[0.5em] text-white outline-none transition-all pr-10"
                 />
-                <Instagram size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <ShieldCheck size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
               </div>
             </div>
-          )}
 
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-              {lang === 'ar' ? 'البريد الإلكتروني' : 'Email Address'}
-            </label>
-            <div className="relative">
-              <input 
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@example.com"
-                className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
-              />
-              <Mail size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-              {lang === 'ar' ? 'كلمة المرور' : 'Password'}
-            </label>
-            <div className="relative">
-              <input 
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
-              />
-              <Lock size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            </div>
-          </div>
-
-          <button 
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-violet-600 hover:bg-violet-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 mt-2 active:scale-95"
-          >
-            {loading ? (
-              <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
-            ) : mode === 'login' ? (
-              <>
-                <LogIn size={16} />
-                {lang === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
-              </>
-            ) : (
-              <>
-                <UserPlus size={16} />
-                {lang === 'ar' ? 'إنشاء الحساب' : 'Create Account'}
-              </>
-            )}
-          </button>
-        </form>
+            <button 
+              type="submit"
+              disabled={loading || code.length < 6}
+              className="w-full py-3.5 bg-violet-600 hover:bg-violet-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 mt-2 active:scale-95 cursor-pointer disabled:opacity-50"
+            >
+              {loading ? (
+                <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+              ) : (
+                <>
+                  <CheckCircle2 size={16} />
+                  {lang === 'ar' ? 'تأكيد الدخول' : 'Confirm Login'}
+                </>
+              )}
+            </button>
+          </form>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -2285,7 +2392,8 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             id: shortOrderId,
             userId: user.uid,
             userEmail: user.email,
-            instaUser: instaHandles || null,
+            instaUser: user.displayName || instaHandles || null,
+            userDisplayName: user.displayName || null,
             items: cart.map(item => ({ 
               id: item.id, 
               name: item.name, 
@@ -3629,17 +3737,44 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                                 <p className="text-xs font-bold text-white/80">{order.createdAt?.toDate().toLocaleString()}</p>
                               </div>
                             </div>
-                            {order.instaUser && (
-                              <div className="flex items-center gap-4 group/item sm:col-span-2 bg-pink-500/5 p-3 rounded-2xl border border-pink-500/20">
-                                <div className="w-10 h-10 bg-gradient-to-tr from-purple-600/20 to-pink-600/20 rounded-xl flex items-center justify-center text-pink-400 group-hover/item:text-pink-300 transition-colors border border-pink-500/30">
-                                  <Instagram size={18} />
+                            {(() => {
+                              const matchedUser = registeredUsers.find(u => 
+                                (u.id && u.id === order.userId) || 
+                                (u.email && order.userEmail && u.email.toLowerCase() === order.userEmail.toLowerCase())
+                              );
+                              const instaHandle = order.instaUser || order.userDisplayName || matchedUser?.displayName || (user?.uid === order.userId ? user.displayName : null);
+                              const cleanInsta = instaHandle ? instaHandle.replace('@', '').trim() : '';
+
+                              return (
+                                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:col-span-2 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-transparent p-4 rounded-2xl border border-pink-500/30">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-11 h-11 bg-gradient-to-tr from-purple-600/30 to-pink-600/30 rounded-xl flex items-center justify-center text-pink-400 border border-pink-500/40 shadow-lg shadow-pink-500/10 shrink-0">
+                                      <Instagram size={22} />
+                                    </div>
+                                    <div>
+                                      <p className="text-[9px] font-black text-pink-400 uppercase tracking-widest mb-0.5">
+                                        {lang === 'ar' ? 'حساب الإنستغرام لتسليم الطلب' : 'Instagram Account for Delivery'}
+                                      </p>
+                                      <p className="text-base font-black text-white font-mono">
+                                        {instaHandle ? (instaHandle.startsWith('@') ? instaHandle : `@${instaHandle}`) : (lang === 'ar' ? 'غير مسجل' : 'Not Provided')}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  {cleanInsta && (
+                                    <a
+                                      href={`https://instagram.com/${cleanInsta}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white font-black text-xs rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-pink-500/20 active:scale-95 shrink-0"
+                                    >
+                                      <Instagram size={14} />
+                                      <span>{lang === 'ar' ? 'فتح في إنستغرام' : 'Open in Instagram'}</span>
+                                      <ExternalLink size={12} />
+                                    </a>
+                                  )}
                                 </div>
-                                <div>
-                                  <p className="text-[8px] font-black text-pink-400 uppercase tracking-widest mb-0.5">Instagram Account (حساب الإنستغرام)</p>
-                                  <p className="text-sm font-black text-white font-mono">{order.instaUser}</p>
-                                </div>
-                              </div>
-                            )}
+                              );
+                            })()}
                           </div>
 
                           {order.txid && (
@@ -4654,6 +4789,10 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             isOpen={isAuthModalOpen} 
             onClose={() => setIsAuthModalOpen(false)} 
             lang={lang} 
+            onSuccess={() => {
+              setCurrentView('home');
+              setIsAuthModalOpen(false);
+            }}
           />
         )}
       </AnimatePresence>
