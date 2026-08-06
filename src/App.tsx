@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, ChangeEvent, useRef, useMemo, useCallback, RefObject } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent, useRef, useMemo, useCallback, RefObject } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Globe, 
@@ -46,17 +46,16 @@ import {
   Share2,
   Heart,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { 
   auth, 
   db, 
-  signInWithPopup, 
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
-  googleProvider, 
   signOut, 
   onAuthStateChanged,
   collection,
@@ -1679,7 +1678,7 @@ const DeliverySection = ({ order, t, onUpdate }: { order: any, t: any, onUpdate:
   );
 };
 
-const ADMIN_EMAILS = ['salamehmhnd@gmail.com', 'mohaned.eyad11@gmail.com'];
+const ADMIN_EMAILS = ['salamehmhnd1@gmail.com', 'mohaned.eyad11@gmail.com'];
 const isAdminEmail = (email?: string | null) => !!email && ADMIN_EMAILS.includes(email.toLowerCase());
 
 interface AuthModalProps {
@@ -1698,7 +1697,7 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
 
   if (!isOpen) return null;
 
-  const handleEmailAuth = async (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!email || !password) {
@@ -1707,7 +1706,7 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
     }
 
     if (mode === 'signup' && !displayName) {
-      setError(lang === 'ar' ? 'يرجى إدخال الاسم الكامل.' : 'Please enter your name.');
+      setError(lang === 'ar' ? 'يرجى إدخال حسابك في انستغرام لتسليمك الطلب.' : 'Please enter your Instagram account for order delivery.');
       return;
     }
 
@@ -1735,39 +1734,20 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
       }
       onClose();
     } catch (err: any) {
-      console.error("Auth error:", err);
-      const code = err?.code || '';
-      if (code === 'auth/email-already-in-use') {
-        setError(lang === 'ar' ? 'هذا البريد الإلكتروني مستخدم بالفعل. حاول تسجيل الدخول.' : 'Email is already in use. Please sign in.');
-      } else if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+      console.warn("Auth status:", err?.code || err?.message);
+      const code = err?.code || err?.message || '';
+      if (code.includes('auth/email-already-in-use')) {
+        setError(lang === 'ar' ? 'هذا البريد الإلكتروني مستخدم بالفعل. يمكنك تسجيل الدخول بنفس الحساب.' : 'Email is already in use. Please sign in with your password.');
+      } else if (code.includes('auth/user-not-found') || code.includes('auth/wrong-password') || code.includes('auth/invalid-credential')) {
         setError(lang === 'ar' ? 'البريد الإلكتروني أو كلمة المرور غير صحيحة.' : 'Incorrect email or password.');
-      } else if (code === 'auth/invalid-email') {
-        setError(lang === 'ar' ? 'عنوان البريد الإلكتروني غير صحيح.' : 'Invalid email address.');
-      } else if (code === 'auth/weak-password') {
-        setError(lang === 'ar' ? 'كلمة المرور ضعيفة جداً.' : 'Weak password.');
+      } else if (code.includes('auth/invalid-email')) {
+        setError(lang === 'ar' ? 'عنوان البريد الإلكتروني غير صحيح.' : 'Invalid email address format.');
+      } else if (code.includes('auth/weak-password')) {
+        setError(lang === 'ar' ? 'كلمة المرور ضعيفة جداً (6 أحرف على الأقل).' : 'Weak password. Must be at least 6 characters.');
+      } else if (code.includes('auth/too-many-requests')) {
+        setError(lang === 'ar' ? 'تم تعليق المحاولات المؤقتة بسبب تكرار البيانات الخاطئة. يرجى الانتظار قليلاً.' : 'Too many failed login attempts. Please try again later.');
       } else {
-        setError(lang === 'ar' ? 'حدث خطأ أثناء العملية. يرجى التأكد من البيانات.' : 'Authentication error. Please check your info.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-      onClose();
-    } catch (err: any) {
-      console.error("Google Auth error:", err);
-      const code = err?.code || '';
-      if (code === 'auth/unauthorized-domain' || code === 'auth/popup-blocked') {
-        setError(lang === 'ar' 
-          ? 'تسجيل الدخول بـ Google مقيّد على هذا النطاق، يمكنك استخدام البريد الإلكتروني وكلمة المرور أعلاه مباشرة وسيعمل فوراً بدون أي قيود.' 
-          : 'Google sign-in is restricted on this domain. Please use Email & Password above to sign in instantly.');
-      } else {
-        setError(lang === 'ar' ? 'حدث خطأ أثناء تسجيل الدخول بـ Google.' : 'Google sign-in error.');
+        setError(lang === 'ar' ? 'حدث خطأ أثناء عملية المصادقة. يرجى التأكد من البيانات المدخلة.' : 'Authentication error. Please check your credentials.');
       }
     } finally {
       setLoading(false);
@@ -1827,9 +1807,29 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
         </div>
 
         {error && (
-          <div className="mb-4 p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-2 font-medium">
-            <AlertCircle size={18} className="shrink-0 text-red-400" />
-            <span className="leading-relaxed">{error}</span>
+          <div className="mb-4 p-3.5 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex flex-col gap-2 font-medium">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={18} className="shrink-0 text-red-400" />
+              <span className="leading-relaxed flex-1">{error}</span>
+            </div>
+            {mode === 'signup' && (error.includes('مستخدم بالفعل') || error.includes('already in use')) && (
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setError(null); }}
+                className="text-[11px] font-bold text-violet-400 hover:text-violet-300 underline self-start cursor-pointer mt-1"
+              >
+                {lang === 'ar' ? '← التبديل إلى تسجيل الدخول' : '→ Switch to Sign In'}
+              </button>
+            )}
+            {mode === 'login' && (error.includes('غير صحيحة') || error.includes('Incorrect')) && (
+              <button
+                type="button"
+                onClick={() => { setMode('signup'); setError(null); }}
+                className="text-[11px] font-bold text-violet-400 hover:text-violet-300 underline self-start cursor-pointer mt-1"
+              >
+                {lang === 'ar' ? '← ليس لديك حساب؟ إنشاء حساب جديد' : '→ Don\'t have an account? Sign Up'}
+              </button>
+            )}
           </div>
         )}
 
@@ -1838,7 +1838,7 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
           {mode === 'signup' && (
             <div>
               <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">
-                {lang === 'ar' ? 'الاسم الكامل' : 'Full Name'}
+                {lang === 'ar' ? 'حسابك انستا' : 'Instagram Account'}
               </label>
               <div className="relative">
                 <input 
@@ -1846,10 +1846,10 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
                   required
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder={lang === 'ar' ? 'مثال: محمد أحمد' : 'e.g. John Doe'}
+                  placeholder={lang === 'ar' ? 'لتسليمك الطلب (مثال: @username)' : 'For order delivery (e.g. @username)'}
                   className="w-full bg-white/5 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-3 text-sm text-white outline-none transition-all pr-10"
                 />
-                <UserIcon size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Instagram size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
               </div>
             </div>
           )}
@@ -1908,29 +1908,6 @@ function AuthModal({ isOpen, onClose, lang }: AuthModalProps) {
             )}
           </button>
         </form>
-
-        <div className="relative my-6 text-center">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
-          <span className="relative bg-dark-void px-3 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-            {lang === 'ar' ? 'أو' : 'OR'}
-          </span>
-        </div>
-
-        {/* Google Auth Button */}
-        <button 
-          type="button"
-          onClick={handleGoogleSignIn}
-          disabled={loading}
-          className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-3 active:scale-95"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-          </svg>
-          {lang === 'ar' ? 'متابعة باستخدام Google' : 'Continue with Google'}
-        </button>
       </motion.div>
     </motion.div>
   );
@@ -1941,7 +1918,8 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
   const [gameRequests, setGameRequests] = useState<any[]>([]);
-  const [adminSubTab, setAdminSubTab] = useState<'orders' | 'requests'>('orders');
+  const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
+  const [adminSubTab, setAdminSubTab] = useState<'orders' | 'requests' | 'users'>('orders');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [lang, setLang] = useState<Language>('ar');
@@ -2016,15 +1994,16 @@ export default function App() {
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // Sync user to Firestore - Use setDoc with merge to preserve roles
+        // Sync user to Firestore - Use setDoc with merge to preserve roles and track lastLoginAt
         setDoc(doc(db, 'users', currentUser.uid), {
           uid: currentUser.uid,
           email: currentUser.email || `${currentUser.uid.substring(0, 8)}@user.lost`,
           displayName: currentUser.displayName || 'مستخدم Lost',
           photoURL: currentUser.photoURL || null,
-          role: 'user' // Default role, firestore rules prevent self-escalation
+          role: 'user', // Default role
+          lastLoginAt: Timestamp.now()
         }, { merge: true }).catch((error) => {
-          console.error("User sync failed", error);
+          console.warn("User sync notice:", error);
         });
       }
     });
@@ -2079,6 +2058,47 @@ export default function App() {
       setGameRequests([]);
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user && isAdminEmail(user.email)) {
+      const path = 'users';
+      const q = query(collection(db, path));
+      const unsubscribeUsers = onSnapshot(q, (snapshot) => {
+        const usersData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setRegisteredUsers(usersData);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, path);
+      });
+      return () => unsubscribeUsers();
+    } else {
+      setRegisteredUsers([]);
+    }
+  }, [user]);
+
+  const deleteRegisteredUser = async (userId: string) => {
+    setRegisteredUsers(prev => prev.filter(u => u.id !== userId));
+    const path = `users/${userId}`;
+    try {
+      await deleteDoc(doc(db, 'users', userId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  };
+
+  const clearAllPreviousUsers = async () => {
+    if (!window.confirm(lang === 'ar' ? 'هل أنت تأكد من مسح جميع الإيميلات المسجلة سابقاً؟' : 'Are you sure you want to clear all registered emails?')) return;
+    for (const u of registeredUsers) {
+      try {
+        await deleteDoc(doc(db, 'users', u.id));
+      } catch (e) {
+        console.warn("User deletion error:", u.id, e);
+      }
+    }
+    setRegisteredUsers([]);
+  };
 
   const updateGameRequestStatus = async (requestId: string, newStatus: string) => {
     setGameRequests(prev => prev.map(r => r.id === requestId ? { ...r, status: newStatus } : r));
@@ -2613,7 +2633,13 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
 
               {user && (
                 <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.02]">
-                  <img src={user.photoURL || ''} alt="" className="w-6 h-6 rounded-full border border-white/10" />
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="" className="w-6 h-6 rounded-full border border-white/10" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-violet-600/30 border border-white/10 flex items-center justify-center text-white text-[10px] font-bold">
+                      {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                    </div>
+                  )}
                   <button onClick={handleLogout} className="text-white/40 hover:text-red-500 transition-colors">
                     <LogOut size={16} />
                   </button>
@@ -2675,7 +2701,13 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                            <div className="text-xs text-white/40">{user.email}</div>
                         </div>
                         <div className="relative">
-                          <img src={user.photoURL || ''} alt="" className="w-10 h-10 rounded-full border border-violet-500/20" />
+                          {user.photoURL ? (
+                            <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full border border-violet-500/20" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-violet-600/30 border border-violet-500/20 flex items-center justify-center text-white text-sm font-bold">
+                              {(user.displayName || user.email || 'U')[0].toUpperCase()}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <button 
@@ -3435,6 +3467,28 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                   )}
                 </div>
               </button>
+              <button
+                onClick={() => setAdminSubTab('users')}
+                className={`pb-4 px-8 text-sm font-black uppercase tracking-widest relative transition-colors ${
+                  adminSubTab === 'users' ? 'text-white' : 'text-slate-500 hover:text-slate-300'
+                }`}
+              >
+                {adminSubTab === 'users' && (
+                  <motion.div
+                    layoutId="adminActiveSubTab"
+                    className="absolute bottom-0 left-0 right-0 h-1 bg-pink-500 rounded-full"
+                  />
+                )}
+                <div className="flex items-center gap-2">
+                  <Instagram size={16} className="text-pink-400" />
+                  <span>{lang === 'ar' ? 'حسابات انستا المسجلة' : 'Registered Instagram Accounts'}</span>
+                  {registeredUsers.length > 0 && (
+                    <span className="bg-pink-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full">
+                      {registeredUsers.length}
+                    </span>
+                  )}
+                </div>
+              </button>
             </div>
 
             {adminSubTab === 'orders' && (
@@ -3758,6 +3812,110 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                   </h3>
                   <p className="text-[10px] font-bold text-slate-600 uppercase tracking-[0.4em]">
                     {lang === 'ar' ? 'طلبات الألعاب من عملائك ستظهر هنا' : 'Customer game requests will show up here'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {adminSubTab === 'users' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white/[0.02] border border-white/5 p-6 rounded-3xl mb-6">
+              <div>
+                <h3 className="text-xl font-black text-white italic uppercase tracking-tight flex items-center gap-2">
+                  <Instagram className="text-pink-400" size={22} />
+                  <span>{lang === 'ar' ? 'سجل حسابات انستا والإيميلات' : 'Registered Instagram Accounts & Emails'}</span>
+                </h3>
+                <p className="text-[11px] font-medium text-slate-400 mt-1">
+                  {lang === 'ar' 
+                    ? 'تظهر هنا جميع حسابات الانستا والإيميلات التي تم التسجيل أو الدخول بها لتسليم الطلبات.' 
+                    : 'All registered Instagram handles and emails are listed here for order processing.'}
+                </p>
+              </div>
+
+              {registeredUsers.length > 0 && (
+                <button
+                  onClick={clearAllPreviousUsers}
+                  className="px-5 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+                >
+                  <Trash2 size={16} />
+                  <span>{lang === 'ar' ? 'حذف كافة البيانات القديمة' : 'Clear All Previous Records'}</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {registeredUsers.length > 0 ? (
+                registeredUsers.map((u) => {
+                  const instaHandle = u.displayName || '';
+                  const cleanInsta = instaHandle.replace('@', '').trim();
+
+                  return (
+                    <div 
+                      key={u.id}
+                      className="bg-[#0f0f12] border border-white/[0.08] hover:border-pink-500/40 rounded-2xl p-5 transition-all flex flex-col justify-between gap-4 group relative overflow-hidden"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-purple-600/30 to-pink-600/30 border border-pink-500/30 flex items-center justify-center text-pink-400 font-bold shrink-0 shadow-lg shadow-pink-500/10">
+                            <Instagram size={20} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-pink-400">
+                              {lang === 'ar' ? 'حساب الانستغرام' : 'Instagram Account'}
+                            </p>
+                            <div className="text-base font-black text-white font-mono truncate">
+                              {instaHandle ? (instaHandle.startsWith('@') ? instaHandle : `@${instaHandle}`) : (lang === 'ar' ? 'غير محدد' : 'Not specified')}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => deleteRegisteredUser(u.id)}
+                          className="p-2 text-slate-600 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer shrink-0"
+                          title={lang === 'ar' ? 'حذف' : 'Delete'}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+
+                      <div className="p-3 bg-white/[0.02] border border-white/5 rounded-xl space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-[10px] text-slate-500 font-medium">{lang === 'ar' ? 'البريد الإلكتروني:' : 'Email:'}</span>
+                          <span className="font-mono text-slate-300 font-bold truncate max-w-[170px]">{u.email || u.id}</span>
+                        </div>
+                        {u.lastLoginAt?.seconds && (
+                          <div className="flex items-center justify-between text-[10px] text-slate-500">
+                            <span>{lang === 'ar' ? 'آخر دخول:' : 'Last login:'}</span>
+                            <span>{new Date(u.lastLoginAt.seconds * 1000).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {cleanInsta && (
+                        <a
+                          href={`https://instagram.com/${cleanInsta}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="w-full py-2 bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/20 text-pink-300 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95"
+                        >
+                          <Instagram size={14} />
+                          <span>{lang === 'ar' ? 'فتح الحساب في Instagram' : 'Open in Instagram'}</span>
+                          <ExternalLink size={12} />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="col-span-full text-center py-20 bg-white/[0.01] border border-dashed border-white/5 rounded-3xl">
+                  <Instagram size={40} className="mx-auto text-pink-500/30 mb-3" />
+                  <h4 className="text-lg font-bold text-white mb-1">
+                    {lang === 'ar' ? 'لا توجد حسابات انستا مسجلة بعد' : 'No Instagram accounts registered yet'}
+                  </h4>
+                  <p className="text-xs text-slate-500">
+                    {lang === 'ar' ? 'سيتم إدراج أي حساب انستا يتم التسجيل به هنا تلقائياً' : 'Any Instagram account provided during signup will appear here'}
                   </p>
                 </div>
               )}

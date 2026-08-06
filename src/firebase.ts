@@ -1,13 +1,11 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore, collection, addDoc, setDoc, getDoc, query, where, onSnapshot, orderBy, Timestamp, doc, getDocFromServer, updateDoc, deleteDoc } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 // Test connection
 async function testConnection() {
@@ -21,5 +19,5 @@ async function testConnection() {
 }
 testConnection();
 
-export { signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signOut, onAuthStateChanged, collection, addDoc, setDoc, getDoc, query, where, onSnapshot, orderBy, Timestamp, updateDoc, deleteDoc, doc };
+export { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signOut, onAuthStateChanged, collection, addDoc, setDoc, getDoc, query, where, onSnapshot, orderBy, Timestamp, updateDoc, deleteDoc, doc };
 export type { User };
