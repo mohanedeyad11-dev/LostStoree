@@ -1697,7 +1697,7 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwWj-bqreEGpMvJJ18KCyTImyv0Bt2ZwIP2W-fg5gOVQuZ2cn9mY8rj6V83cfP0cVAk/exec';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwuRDNn4sd1SDonqKD2N7lWZW16ewiuLfanz2h0T4xggq4vavovLmKtxVjiujnAZ75oNA/exec';
 
   if (!isOpen) return null;
 
@@ -1724,20 +1724,8 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
       let response: Response | null = null;
       let data: any = {};
 
+      // Send POST request as requested
       try {
-        // Try GET request first as Apps Script handles GET query string parameters seamlessly
-        response = await fetch(queryUrl, { method: 'GET' });
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-      } catch (getErr) {
-        console.warn("GET sendCode fallback to POST:", getErr);
-      }
-
-      // If GET didn't return JSON result, try POST
-      if (!data || (!data.status && !data.success && !data.result)) {
         response = await fetch(queryUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1748,17 +1736,33 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
         } catch (parseErr) {
           console.warn("GAS POST response json parse warning:", parseErr);
         }
+      } catch (postErr) {
+        console.warn("POST sendCode failed, attempting GET fallback:", postErr);
+      }
+
+      // If POST didn't return valid response object, try GET as fallback
+      if (!data || (!data.status && !data.success && !data.result)) {
+        try {
+          response = await fetch(queryUrl, { method: 'GET' });
+          try {
+            data = await response.json();
+          } catch {
+            data = {};
+          }
+        } catch (getErr) {
+          console.warn("GET sendCode fallback error:", getErr);
+        }
       }
 
       if (data.status === 'error' || data.error) {
-        setError(data.message || data.error || (lang === 'ar' ? 'فشل إرسال كود التحقق. يرجى التأكد من إعدادات تطبيق Google Apps Script والبريد الإلكتروني.' : 'Failed to send verification code. Please check your email and script configuration.'));
+        setError(data.message || data.error || (lang === 'ar' ? 'فشل إرسال كود التحقق. يرجى التأكد من البريد الإلكتروني والإعدادات.' : 'Failed to send verification code. Please check your email and settings.'));
       } else {
         setStep('code');
         setSuccessMsg(lang === 'ar' ? 'تم إرسال كود التحقق إلى بريدك الإلكتروني بنجاح (افحص صندوق الوارد والبريد العشوائي Spam).' : 'Verification code sent! Please check your Inbox and Spam folder.');
       }
     } catch (err: any) {
       console.error("Send code error:", err);
-      setError(lang === 'ar' ? 'حدث خطأ أثناء إرسال الكود. يرجى التأكد من صلاحيات Google Apps Script وصحة البريد.' : 'Error sending code. Please check script permissions and email.');
+      setError(lang === 'ar' ? 'حدث خطأ أثناء إرسال الكود. يرجى التأكد من البريد الإلكتروني والمحاولة مجدداً.' : 'Error sending code. Please check your email and try again.');
     } finally {
       setLoading(false);
     }
@@ -1783,18 +1787,8 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
       let response: Response | null = null;
       let data: any = {};
 
+      // Send POST request as requested
       try {
-        response = await fetch(queryUrl, { method: 'GET' });
-        try {
-          data = await response.json();
-        } catch {
-          data = {};
-        }
-      } catch (getErr) {
-        console.warn("GET verifyCode fallback to POST:", getErr);
-      }
-
-      if (!data || (!data.status && !data.success && !data.result)) {
         response = await fetch(queryUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1804,6 +1798,22 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
           data = await response.json();
         } catch (parseErr) {
           console.warn("GAS POST response json parse warning:", parseErr);
+        }
+      } catch (postErr) {
+        console.warn("POST verifyCode failed, attempting GET fallback:", postErr);
+      }
+
+      // If POST didn't return valid response object, try GET as fallback
+      if (!data || (!data.status && !data.success && !data.result)) {
+        try {
+          response = await fetch(queryUrl, { method: 'GET' });
+          try {
+            data = await response.json();
+          } catch {
+            data = {};
+          }
+        } catch (getErr) {
+          console.warn("GET verifyCode fallback error:", getErr);
         }
       }
 
