@@ -1678,7 +1678,7 @@ const DeliverySection = ({ order, t, onUpdate }: { order: any, t: any, onUpdate:
   );
 };
 
-const ADMIN_EMAILS = ['salamehmhnd1@gmail.com', 'mohaned.eyad11@gmail.com'];
+const ADMIN_EMAILS = ['salamehmhnd1@gmail.com', 'mohaned.eyad11@gmail.com', 'loststore.jo@gmail.com'];
 const isAdminEmail = (email?: string | null) => !!email && ADMIN_EMAILS.includes(email.toLowerCase());
 
 interface AuthModalProps {
@@ -1697,7 +1697,7 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbw6QQK8lifAzgk90wYIxo2oV8Fyffgp0iCSH5F2gnDSnzxfJ2tW_RqB6GTMWaV8F0GX/exec';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbwWj-bqreEGpMvJJ18KCyTImyv0Bt2ZwIP2W-fg5gOVQuZ2cn9mY8rj6V83cfP0cVAk/exec';
 
   if (!isOpen) return null;
 
@@ -1721,28 +1721,44 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
       const trimmedEmail = email.trim();
       const queryUrl = `${GAS_URL}?action=sendCode&email=${encodeURIComponent(trimmedEmail)}`;
 
-      const response = await fetch(queryUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'sendCode', email: trimmedEmail })
-      });
-
+      let response: Response | null = null;
       let data: any = {};
+
       try {
-        data = await response.json();
-      } catch (parseErr) {
-        console.warn("GAS response json parse warning:", parseErr);
+        // Try GET request first as Apps Script handles GET query string parameters seamlessly
+        response = await fetch(queryUrl, { method: 'GET' });
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+      } catch (getErr) {
+        console.warn("GET sendCode fallback to POST:", getErr);
+      }
+
+      // If GET didn't return JSON result, try POST
+      if (!data || (!data.status && !data.success && !data.result)) {
+        response = await fetch(queryUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'sendCode', email: trimmedEmail })
+        });
+        try {
+          data = await response.json();
+        } catch (parseErr) {
+          console.warn("GAS POST response json parse warning:", parseErr);
+        }
       }
 
       if (data.status === 'error' || data.error) {
-        setError(data.message || data.error || (lang === 'ar' ? 'فشل إرسال كود التحقق. حاول مرة أخرى.' : 'Failed to send verification code.'));
+        setError(data.message || data.error || (lang === 'ar' ? 'فشل إرسال كود التحقق. يرجى التأكد من إعدادات تطبيق Google Apps Script والبريد الإلكتروني.' : 'Failed to send verification code. Please check your email and script configuration.'));
       } else {
         setStep('code');
-        setSuccessMsg(lang === 'ar' ? 'تم إرسال كود التحقق إلى بريدك الإلكتروني بنجاح.' : 'Verification code has been sent to your email.');
+        setSuccessMsg(lang === 'ar' ? 'تم إرسال كود التحقق إلى بريدك الإلكتروني بنجاح (افحص صندوق الوارد والبريد العشوائي Spam).' : 'Verification code sent! Please check your Inbox and Spam folder.');
       }
     } catch (err: any) {
       console.error("Send code error:", err);
-      setError(lang === 'ar' ? 'حدث خطأ أثناء إرسال الكود. يرجى التأكد من البريد الإلكتروني والمحاولة مجدداً.' : 'Error sending code. Please try again.');
+      setError(lang === 'ar' ? 'حدث خطأ أثناء إرسال الكود. يرجى التأكد من صلاحيات Google Apps Script وصحة البريد.' : 'Error sending code. Please check script permissions and email.');
     } finally {
       setLoading(false);
     }
@@ -1764,20 +1780,34 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
       const trimmedCode = code.trim();
       const queryUrl = `${GAS_URL}?action=verifyCode&email=${encodeURIComponent(trimmedEmail)}&code=${encodeURIComponent(trimmedCode)}`;
 
-      const response = await fetch(queryUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'verifyCode', email: trimmedEmail, code: trimmedCode })
-      });
-
+      let response: Response | null = null;
       let data: any = {};
+
       try {
-        data = await response.json();
-      } catch (parseErr) {
-        console.warn("GAS response json parse warning:", parseErr);
+        response = await fetch(queryUrl, { method: 'GET' });
+        try {
+          data = await response.json();
+        } catch {
+          data = {};
+        }
+      } catch (getErr) {
+        console.warn("GET verifyCode fallback to POST:", getErr);
       }
 
-      const isSuccess = data.status === 'success' || data.success === true || data.result === 'success' || (response.ok && !data.error && data.status !== 'error');
+      if (!data || (!data.status && !data.success && !data.result)) {
+        response = await fetch(queryUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'verifyCode', email: trimmedEmail, code: trimmedCode })
+        });
+        try {
+          data = await response.json();
+        } catch (parseErr) {
+          console.warn("GAS POST response json parse warning:", parseErr);
+        }
+      }
+
+      const isSuccess = data.status === 'success' || data.success === true || data.result === 'success' || (response && response.ok && !data.error && data.status !== 'error');
 
       if (!isSuccess && (data.status === 'error' || data.error || data.message?.includes('incorrect') || data.message?.includes('invalid'))) {
         setError(data.message || data.error || (lang === 'ar' ? 'كود التحقق غير صحيح أو منتهي الصلاحية.' : 'Invalid or expired verification code.'));
@@ -1976,6 +2006,20 @@ function AuthModal({ isOpen, onClose, lang, onSuccess }: AuthModalProps & { onSu
               <p className="text-xs font-bold text-violet-400 font-mono mt-0.5">{email}</p>
             </div>
 
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-300 text-xs flex items-start gap-2 leading-relaxed">
+              <AlertCircle size={16} className="shrink-0 text-amber-400 mt-0.5" />
+              <div>
+                <p className="font-bold">
+                  {lang === 'ar' ? 'لم يصلك الكود؟' : 'Code not in inbox?'}
+                </p>
+                <p className="text-[11px] text-amber-200/90 mt-0.5">
+                  {lang === 'ar' 
+                    ? 'تفقّد خانة الرسائل غير المرغوب فيها (Spam / Junk) أو البريد العشوائي، حيث تصل بعض الرسائل هناك.' 
+                    : 'Please check your Spam / Junk folder as messages may sometimes arrive there.'}
+                </p>
+              </div>
+            </div>
+
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -2153,14 +2197,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isLoggedIn) {
-      const isAdmin = isAdminEmail(currentEmail);
+    if (user && user.uid) {
+      const isAdmin = isAdminEmail(user.email);
       const path = 'orders';
       const q = isAdmin 
         ? query(collection(db, path), orderBy('createdAt', 'desc'))
-        : user?.uid 
-          ? query(collection(db, path), where('userId', '==', user.uid), orderBy('createdAt', 'desc'))
-          : query(collection(db, path), orderBy('createdAt', 'desc'));
+        : query(collection(db, path), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
           
       const unsubscribeOrders = onSnapshot(q, (snapshot) => {
         const ordersData = snapshot.docs.map(doc => ({
@@ -2175,10 +2217,10 @@ export default function App() {
     } else {
       setOrders([]);
     }
-  }, [user, isLoggedIn, currentEmail]);
+  }, [user]);
 
   useEffect(() => {
-    if (isLoggedIn && isAdminEmail(currentEmail)) {
+    if (user && user.email && isAdminEmail(user.email)) {
       const path = 'game_requests';
       const q = query(collection(db, path), orderBy('createdAt', 'desc'));
       const unsubscribeRequests = onSnapshot(q, (snapshot) => {
@@ -2194,10 +2236,10 @@ export default function App() {
     } else {
       setGameRequests([]);
     }
-  }, [user, isLoggedIn, currentEmail]);
+  }, [user]);
 
   useEffect(() => {
-    if (isLoggedIn && isAdminEmail(currentEmail)) {
+    if (user && user.email && isAdminEmail(user.email)) {
       const path = 'users';
       const q = query(collection(db, path));
       const unsubscribeUsers = onSnapshot(q, (snapshot) => {
@@ -2213,7 +2255,7 @@ export default function App() {
     } else {
       setRegisteredUsers([]);
     }
-  }, [user, isLoggedIn, currentEmail]);
+  }, [user]);
 
   const deleteRegisteredUser = async (userId: string) => {
     setRegisteredUsers(prev => prev.filter(u => u.id !== userId));
@@ -2786,7 +2828,9 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                     </div>
                   )}
                   <span className="text-xs font-bold text-white/80 max-w-[160px] truncate font-mono">
-                    {currentEmail}
+                    {user?.displayName && user.displayName !== 'مستخدم Lost'
+                      ? (user.displayName.startsWith('@') ? user.displayName : `@${user.displayName}`)
+                      : (currentEmail ? `@${currentEmail.split('@')[0]}` : '')}
                   </span>
                   <button 
                     onClick={handleLogout} 
@@ -2849,7 +2893,11 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                     <div className="flex flex-col gap-4">
                       <div className="flex items-center justify-end gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/5">
                         <div className="text-right">
-                           <div className="text-sm font-black text-white">{user?.displayName || currentEmail}</div>
+                           <div className="text-sm font-black text-white">
+                             {user?.displayName && user.displayName !== 'مستخدم Lost'
+                               ? (user.displayName.startsWith('@') ? user.displayName : `@${user.displayName}`)
+                               : (currentEmail ? `@${currentEmail.split('@')[0]}` : '')}
+                           </div>
                            <div className="text-xs text-white/40 font-mono">{currentEmail}</div>
                         </div>
                         <div className="relative">
