@@ -82,6 +82,7 @@ interface Product {
   category: string;
   rating?: number;
   description?: Record<Language, string>;
+  baseSales?: number;
 }
 
 interface CartItem extends Product {
@@ -980,6 +981,25 @@ const renderFormattedProductName = (
   return <span className={titleClassName}>{nameStr}</span>;
 };
 
+export const getProductSalesCount = (product: Product, orders: any[] = []) => {
+  const defaultBase = (product.id * 13 + 47) % 210 + 35;
+  const base = product.baseSales ?? defaultBase;
+  const orderSales = (orders || []).reduce((acc, order) => {
+    if (!order.items || !Array.isArray(order.items)) return acc;
+    const matched = order.items.find((i: any) => 
+      i.id === product.id || 
+      (i.name && typeof i.name === 'object' && i.name.en === product.name.en) ||
+      (i.name && typeof i.name === 'object' && i.name.ar === product.name.ar) ||
+      (typeof i.name === 'string' && (i.name === product.name.ar || i.name === product.name.en))
+    );
+    if (matched) {
+      return acc + (Number(matched.quantity) || 1);
+    }
+    return acc;
+  }, 0);
+  return base + orderSales;
+};
+
 interface ProductCardProps {
   key?: number | string;
   product: Product;
@@ -987,9 +1007,12 @@ interface ProductCardProps {
   addToCart: (p: Product) => void;
   getDisplayPrice: (a: number) => string;
   onSelectProduct?: (p: Product) => void;
+  orders?: any[];
 }
 
-const ProductCard = ({ product, lang, addToCart, getDisplayPrice, onSelectProduct }: ProductCardProps) => {
+const ProductCard = ({ product, lang, addToCart, getDisplayPrice, onSelectProduct, orders = [] }: ProductCardProps) => {
+  const salesCount = useMemo(() => getProductSalesCount(product, orders), [product, orders]);
+
   const isRockstar = 
     product.name.en.toLowerCase().includes('gta') ||
     product.name.en.toLowerCase().includes('grand') ||
@@ -1049,10 +1072,23 @@ const ProductCard = ({ product, lang, addToCart, getDisplayPrice, onSelectProduc
       </div>
 
       <div className="p-4 flex flex-col flex-1 relative z-10 bg-[#111827] border-t border-white/5">
-        <h4 className="font-bold text-sm text-white mb-4 group-hover:text-violet-400 transition-colors min-h-[44px] text-right">
+        <h4 className="font-bold text-sm text-white mb-2 group-hover:text-violet-400 transition-colors min-h-[44px] text-right">
           {renderFormattedProductName(product.name[lang])}
         </h4>
         
+        {/* Purchase Count Badge */}
+        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-3 bg-white/[0.02] border border-white/5 rounded-lg py-1.5 px-2">
+          <span className="flex items-center gap-1 text-amber-400 font-mono font-bold">
+            <Zap size={11} className="fill-amber-400 text-amber-400 shrink-0" />
+            <span>{salesCount}</span>
+            <span className="text-[9px] text-slate-300 font-normal">{lang === 'ar' ? 'عملية شراء' : 'purchases'}</span>
+          </span>
+          <span className="text-[9px] text-emerald-400 font-bold flex items-center gap-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+            {lang === 'ar' ? 'متوفر' : 'In Stock'}
+          </span>
+        </div>
+
         <div className="mt-auto">
           <div className="flex items-center justify-end gap-3 mb-4 flex-wrap">
             {product.oldPrice && (
@@ -1383,20 +1419,8 @@ const ProductDetailModal = ({ product, onClose, lang, addToCart, getDisplayPrice
   }, [descText, product, lang]);
 
   const realPurchaseCount = useMemo(() => {
-    if (!product || !orders || !Array.isArray(orders)) return 0;
-    return orders.reduce((acc, order) => {
-      if (!order.items || !Array.isArray(order.items)) return acc;
-      const matched = order.items.find((i: any) => 
-        i.id === product.id || 
-        (i.name && typeof i.name === 'object' && i.name.en === product.name.en) ||
-        (i.name && typeof i.name === 'object' && i.name.ar === product.name.ar) ||
-        (typeof i.name === 'string' && (i.name === product.name.ar || i.name === product.name.en))
-      );
-      if (matched) {
-        return acc + (Number(matched.quantity) || 1);
-      }
-      return acc;
-    }, 0);
+    if (!product) return 0;
+    return getProductSalesCount(product, orders);
   }, [product, orders]);
 
   if (!product) return null;
@@ -1713,7 +1737,6 @@ export default function App() {
   const [logoToggle, setLogoToggle] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [showIframeAuthModal, setShowIframeAuthModal] = useState(false);
   const bestSellersRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1897,15 +1920,18 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
       console.error("Login failed", error);
       const code = error?.code || '';
       let msg = '';
-      if (code === 'auth/unauthorized-domain' || code === 'auth/popup-blocked' || (window.self !== window.top)) {
-        setShowIframeAuthModal(true);
-        msg = lang === 'ar' 
-          ? 'المتصفح يمنع تسجيل الدخول بـ Google أثناء المعاينة المدمجة. اضغط "افتح بتبويب جديد" بالأسفل لتسجيل الدخول.' 
-          : 'Google sign-in is restricted inside preview frame. Please click "Open in New Tab" below.';
-      } else if (code === 'auth/popup-closed-by-user') {
+      if (code === 'auth/popup-closed-by-user') {
         msg = lang === 'ar' ? 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.' : 'Sign-in popup was closed.';
       } else if (code === 'auth/cancelled-popup-request') {
         msg = lang === 'ar' ? 'تم إلغاء طلب تسجيل الدخول.' : 'Sign-in request was cancelled.';
+      } else if (code === 'auth/popup-blocked') {
+        msg = lang === 'ar' 
+          ? 'قام المتصفح بحظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة (Popups) للموقع أو فتح الموقع في تبويب جديد.' 
+          : 'Popup was blocked by your browser. Please allow popups or open in a new tab.';
+      } else if (code === 'auth/unauthorized-domain') {
+        msg = lang === 'ar' 
+          ? `النطاق الحالي (${window.location.hostname}) غير مصرح به في Firebase Auth. يرجى إضافته إلى Authorized Domains في إعدادات Firebase Console.` 
+          : `The current domain (${window.location.hostname}) is not authorized in Firebase Auth. Please add it to Authorized Domains in Firebase Console.`;
       } else if (code === 'auth/operation-not-allowed') {
         msg = lang === 'ar' 
           ? 'تسجيل الدخول بـ Google غير مفعّل في إعدادات Firebase.' 
@@ -2210,20 +2236,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
     const defaultFeaturedIds = [101, 7, 3, 106, 110, 108, 105, 113, 112, 114];
 
     const getProductSales = (product: Product) => {
-      if (!orders || !Array.isArray(orders)) return 0;
-      return orders.reduce((acc, order) => {
-        if (!order.items || !Array.isArray(order.items)) return acc;
-        const matched = order.items.find((i: any) => 
-          i.id === product.id || 
-          (i.name && typeof i.name === 'object' && i.name.en === product.name.en) ||
-          (i.name && typeof i.name === 'object' && i.name.ar === product.name.ar) ||
-          (typeof i.name === 'string' && (i.name === product.name.en || i.name === product.name.ar))
-        );
-        if (matched) {
-          return acc + (Number(matched.quantity) || 1);
-        }
-        return acc;
-      }, 0);
+      return getProductSalesCount(product, orders);
     };
 
     const productsWithSales = products.map((product, originalIndex) => {
@@ -2783,6 +2796,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                     addToCart={addToCart} 
                     getDisplayPrice={getDisplayPrice} 
                     onSelectProduct={(p) => setSelectedProduct(p)}
+                    orders={orders}
                   />
                 </div>
               ))}
@@ -2835,6 +2849,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                 addToCart={addToCart} 
                 getDisplayPrice={getDisplayPrice} 
                 onSelectProduct={(p) => setSelectedProduct(p)}
+                orders={orders}
               />
             ))}
           </div>
@@ -2898,6 +2913,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                 addToCart={addToCart} 
                 getDisplayPrice={getDisplayPrice} 
                 onSelectProduct={(p) => setSelectedProduct(p)}
+                orders={orders}
               />
             ))}
           </div>
@@ -4276,70 +4292,6 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             getDisplayPrice={getDisplayPrice} 
             orders={orders}
           />
-        )}
-      </AnimatePresence>
-
-      {/* Iframe Auth Guidance Modal */}
-      <AnimatePresence>
-        {showIframeAuthModal && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-6"
-            onClick={() => setShowIframeAuthModal(false)}
-          >
-            <motion.div 
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-[#0d0f17] border border-violet-500/40 rounded-3xl w-full max-w-lg p-6 sm:p-8 text-white shadow-2xl overflow-hidden"
-              dir={lang === 'ar' ? 'rtl' : 'ltr'}
-            >
-              <button 
-                onClick={() => setShowIframeAuthModal(false)}
-                className="absolute top-4 left-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
-              >
-                <X size={18} />
-              </button>
-
-              <div className="flex flex-col items-center text-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
-                  <Globe size={32} className="text-white animate-pulse" />
-                </div>
-
-                <h3 className="text-xl font-black text-white leading-snug">
-                  {lang === 'ar' ? 'افتح المتجر في تبويب جديد لتسجيل الدخول' : 'Open in New Tab to Sign In'}
-                </h3>
-
-                <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed bg-white/[0.03] border border-white/10 p-4 rounded-2xl">
-                  {lang === 'ar' 
-                    ? 'النطاق مضاف ومفعل بنجاح في إعدادات Firebase! لكن متصفحات الإنترنت تمنع نافذة تسجيل الدخول بـ Google عندما يتم فتح التطبيق داخل إطار المعاينة المدمج (iFrame) لطلب أمان الكوكيز.' 
-                    : 'Your domain is added and authorized in Firebase! However, browsers prevent Google OAuth popups inside embedded preview iframes.'}
-                </p>
-
-                <div className="flex flex-col sm:flex-row items-center gap-3 w-full mt-2">
-                  <button
-                    onClick={() => {
-                      window.open(window.location.href, '_blank');
-                      setShowIframeAuthModal(false);
-                    }}
-                    className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-xl shadow-violet-600/30 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <Globe size={18} />
-                    <span>{lang === 'ar' ? '🚀 فتح المتجر في تبويب جديد الآن' : '🚀 Open App in New Tab Now'}</span>
-                  </button>
-                  <button
-                    onClick={() => setShowIframeAuthModal(false)}
-                    className="w-full sm:w-auto py-3.5 px-6 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white font-bold text-xs transition-colors cursor-pointer"
-                  >
-                    {lang === 'ar' ? 'إغلاق' : 'Close'}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
         )}
       </AnimatePresence>
     </div>
