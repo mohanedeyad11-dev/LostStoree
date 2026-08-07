@@ -13,12 +13,14 @@ service cloud.firestore {
     }
     
     function isEmailVerified() {
-      return isSignedIn() && request.auth.token.email_verified == true;
+      return isSignedIn() && 
+        ('email_verified' in request.auth.token ? request.auth.token.email_verified == true : true);
     }
 
     function isAdmin() {
       return isSignedIn() && 
-        (request.auth.token.email in ["salamehmhnd@gmail.com", "mohaned.eyad11@gmail.com"]);
+        ('email' in request.auth.token) &&
+        (request.auth.token.email.lower() in ["salamehmhnd@gmail.com", "mohaned.eyad11@gmail.com"]);
     }
     
     function isOwner(userId) {
@@ -42,8 +44,8 @@ service cloud.firestore {
 
     function isValidGameRequest(data) {
       return data.keys().hasAll(['gameTitle', 'contactInfo', 'createdAt']) &&
-             data.gameTitle is string &&
-             data.contactInfo is string &&
+             data.gameTitle is string && data.gameTitle.size() <= 200 &&
+             data.contactInfo is string && data.contactInfo.size() <= 200 &&
              data.createdAt is timestamp;
     }
 
@@ -54,18 +56,18 @@ service cloud.firestore {
 
     match /orders/{orderId} {
       // allow get if owner, admin, or it doesn't exist (to allow generateOrderId check)
-      allow get: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
-      // allow list only for owner or admin
-      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow get: if isSignedIn() && (resource == null || isAdmin() || resource.data.userId == request.auth.uid);
+      // allow list for admin or owner
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
       
-      allow create: if isEmailVerified() && isValidOrder(request.resource.data);
+      allow create: if isSignedIn() && isValidOrder(request.resource.data);
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     match /game_requests/{requestId} {
-      allow read, list: if isAdmin();
-      allow create: if isValidGameRequest(request.resource.data);
+      allow get, list: if isAdmin();
+      allow create: if isSignedIn() && isValidGameRequest(request.resource.data);
       allow update, delete: if isAdmin();
     }
     
