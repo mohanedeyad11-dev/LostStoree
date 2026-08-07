@@ -1713,6 +1713,7 @@ export default function App() {
   const [logoToggle, setLogoToggle] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [showIframeAuthModal, setShowIframeAuthModal] = useState(false);
   const bestSellersRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1896,18 +1897,15 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
       console.error("Login failed", error);
       const code = error?.code || '';
       let msg = '';
-      if (code === 'auth/popup-closed-by-user') {
+      if (code === 'auth/unauthorized-domain' || code === 'auth/popup-blocked' || (window.self !== window.top)) {
+        setShowIframeAuthModal(true);
+        msg = lang === 'ar' 
+          ? 'المتصفح يمنع تسجيل الدخول بـ Google أثناء المعاينة المدمجة. اضغط "افتح بتبويب جديد" بالأسفل لتسجيل الدخول.' 
+          : 'Google sign-in is restricted inside preview frame. Please click "Open in New Tab" below.';
+      } else if (code === 'auth/popup-closed-by-user') {
         msg = lang === 'ar' ? 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.' : 'Sign-in popup was closed.';
       } else if (code === 'auth/cancelled-popup-request') {
         msg = lang === 'ar' ? 'تم إلغاء طلب تسجيل الدخول.' : 'Sign-in request was cancelled.';
-      } else if (code === 'auth/popup-blocked') {
-        msg = lang === 'ar' 
-          ? 'قام المتصفح بحظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة (Popups) للموقع أو فتح الموقع في تبويب جديد.' 
-          : 'Popup was blocked by your browser. Please allow popups or open in a new tab.';
-      } else if (code === 'auth/unauthorized-domain') {
-        msg = lang === 'ar' 
-          ? 'هذا النطاق غير مصرح به في إعدادات Firebase Auth. يرجى فتح التطبيق في تبويب جديد.' 
-          : 'This domain is not authorized in Firebase Auth. Please open the app in a new tab.';
       } else if (code === 'auth/operation-not-allowed') {
         msg = lang === 'ar' 
           ? 'تسجيل الدخول بـ Google غير مفعّل في إعدادات Firebase.' 
@@ -4278,6 +4276,70 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             getDisplayPrice={getDisplayPrice} 
             orders={orders}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Iframe Auth Guidance Modal */}
+      <AnimatePresence>
+        {showIframeAuthModal && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[110] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 sm:p-6"
+            onClick={() => setShowIframeAuthModal(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-[#0d0f17] border border-violet-500/40 rounded-3xl w-full max-w-lg p-6 sm:p-8 text-white shadow-2xl overflow-hidden"
+              dir={lang === 'ar' ? 'rtl' : 'ltr'}
+            >
+              <button 
+                onClick={() => setShowIframeAuthModal(false)}
+                className="absolute top-4 left-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+                  <Globe size={32} className="text-white animate-pulse" />
+                </div>
+
+                <h3 className="text-xl font-black text-white leading-snug">
+                  {lang === 'ar' ? 'افتح المتجر في تبويب جديد لتسجيل الدخول' : 'Open in New Tab to Sign In'}
+                </h3>
+
+                <p className="text-xs sm:text-sm text-slate-300 font-medium leading-relaxed bg-white/[0.03] border border-white/10 p-4 rounded-2xl">
+                  {lang === 'ar' 
+                    ? 'النطاق مضاف ومفعل بنجاح في إعدادات Firebase! لكن متصفحات الإنترنت تمنع نافذة تسجيل الدخول بـ Google عندما يتم فتح التطبيق داخل إطار المعاينة المدمج (iFrame) لطلب أمان الكوكيز.' 
+                    : 'Your domain is added and authorized in Firebase! However, browsers prevent Google OAuth popups inside embedded preview iframes.'}
+                </p>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3 w-full mt-2">
+                  <button
+                    onClick={() => {
+                      window.open(window.location.href, '_blank');
+                      setShowIframeAuthModal(false);
+                    }}
+                    className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider shadow-xl shadow-violet-600/30 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Globe size={18} />
+                    <span>{lang === 'ar' ? '🚀 فتح المتجر في تبويب جديد الآن' : '🚀 Open App in New Tab Now'}</span>
+                  </button>
+                  <button
+                    onClick={() => setShowIframeAuthModal(false)}
+                    className="w-full sm:w-auto py-3.5 px-6 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    {lang === 'ar' ? 'إغلاق' : 'Close'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
