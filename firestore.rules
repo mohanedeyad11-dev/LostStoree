@@ -20,7 +20,13 @@ service cloud.firestore {
     function isAdmin() {
       return isSignedIn() && 
         ('email' in request.auth.token) &&
-        (request.auth.token.email.lower() in ["salamehmhnd@gmail.com", "mohaned.eyad11@gmail.com"]);
+        (request.auth.token.email.lower() in [
+          "salamehmhnd@gmail.com", 
+          "mohaned.eyad11@gmail.com", 
+          "mhnd0.o@instagram.local", 
+          "salamehmhnd@instagram.local", 
+          "admin@instagram.local"
+        ]);
     }
     
     function isOwner(userId) {

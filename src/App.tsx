@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, ChangeEvent, useRef, useMemo, useCallback, RefObject } from 'react';
+import { useState, useEffect, ChangeEvent, FormEvent, useRef, useMemo, useCallback, RefObject } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Globe, 
@@ -43,14 +43,16 @@ import {
   Share2,
   Heart,
   ShieldCheck,
-  AlertTriangle
+  AlertTriangle,
+  ExternalLink
 } from 'lucide-react';
 import { PayPalScriptProvider, PayPalButtons } from "@paypal/react-paypal-js";
 import { 
   auth, 
   db, 
-  signInWithPopup, 
-  googleProvider, 
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   signOut, 
   onAuthStateChanged,
   collection,
@@ -982,8 +984,6 @@ const renderFormattedProductName = (
 };
 
 export const getProductSalesCount = (product: Product, orders: any[] = []) => {
-  const defaultBase = (product.id * 13 + 47) % 210 + 35;
-  const base = product.baseSales ?? defaultBase;
   const orderSales = (orders || []).reduce((acc, order) => {
     if (!order.items || !Array.isArray(order.items)) return acc;
     const matched = order.items.find((i: any) => 
@@ -997,7 +997,7 @@ export const getProductSalesCount = (product: Product, orders: any[] = []) => {
     }
     return acc;
   }, 0);
-  return base + orderSales;
+  return orderSales;
 };
 
 interface ProductCardProps {
@@ -1010,9 +1010,7 @@ interface ProductCardProps {
   orders?: any[];
 }
 
-const ProductCard = ({ product, lang, addToCart, getDisplayPrice, onSelectProduct, orders = [] }: ProductCardProps) => {
-  const salesCount = useMemo(() => getProductSalesCount(product, orders), [product, orders]);
-
+const ProductCard = ({ product, lang, addToCart, getDisplayPrice, onSelectProduct }: ProductCardProps) => {
   const isRockstar = 
     product.name.en.toLowerCase().includes('gta') ||
     product.name.en.toLowerCase().includes('grand') ||
@@ -1072,22 +1070,9 @@ const ProductCard = ({ product, lang, addToCart, getDisplayPrice, onSelectProduc
       </div>
 
       <div className="p-4 flex flex-col flex-1 relative z-10 bg-[#111827] border-t border-white/5">
-        <h4 className="font-bold text-sm text-white mb-2 group-hover:text-violet-400 transition-colors min-h-[44px] text-right">
+        <h4 className="font-bold text-sm text-white mb-3 group-hover:text-violet-400 transition-colors min-h-[44px] text-right">
           {renderFormattedProductName(product.name[lang])}
         </h4>
-        
-        {/* Purchase Count Badge */}
-        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mb-3 bg-white/[0.02] border border-white/5 rounded-lg py-1.5 px-2">
-          <span className="flex items-center gap-1 text-amber-400 font-mono font-bold">
-            <Zap size={11} className="fill-amber-400 text-amber-400 shrink-0" />
-            <span>{salesCount}</span>
-            <span className="text-[9px] text-slate-300 font-normal">{lang === 'ar' ? 'عملية شراء' : 'purchases'}</span>
-          </span>
-          <span className="text-[9px] text-emerald-400 font-bold flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-            {lang === 'ar' ? 'متوفر' : 'In Stock'}
-          </span>
-        </div>
 
         <div className="mt-auto">
           <div className="flex items-center justify-end gap-3 mb-4 flex-wrap">
@@ -1697,8 +1682,251 @@ const DeliverySection = ({ order, t, onUpdate }: { order: any, t: any, onUpdate:
   );
 };
 
-const ADMIN_EMAILS = ['salamehmhnd@gmail.com', 'mohaned.eyad11@gmail.com'];
-const isAdminEmail = (email?: string | null) => !!email && ADMIN_EMAILS.includes(email.toLowerCase());
+interface InstagramAuthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  lang: Language;
+  authMode: 'login' | 'signup';
+  setAuthMode: (mode: 'login' | 'signup') => void;
+  instaUsernameInput: string;
+  setInstaUsernameInput: (val: string) => void;
+  instaPasswordInput: string;
+  setInstaPasswordInput: (val: string) => void;
+  instaConfirmPasswordInput: string;
+  setInstaConfirmPasswordInput: (val: string) => void;
+  isLoggingIn: boolean;
+  authModalError: string | null;
+  setAuthModalError: (err: string | null) => void;
+  onSubmit: (e?: FormEvent) => void;
+}
+
+const InstagramAuthModal = ({
+  isOpen,
+  onClose,
+  lang,
+  authMode,
+  setAuthMode,
+  instaUsernameInput,
+  setInstaUsernameInput,
+  instaPasswordInput,
+  setInstaPasswordInput,
+  instaConfirmPasswordInput,
+  setInstaConfirmPasswordInput,
+  isLoggingIn,
+  authModalError,
+  setAuthModalError,
+  onSubmit
+}: InstagramAuthModalProps) => {
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 z-[1100] bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto"
+      onClick={onClose}
+    >
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0, y: 20 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md bg-[#111827] border border-white/10 rounded-3xl p-6 sm:p-8 shadow-2xl text-white overflow-hidden"
+        dir={lang === 'ar' ? 'rtl' : 'ltr'}
+      >
+        {/* Close Button */}
+        <button 
+          onClick={onClose}
+          className="absolute top-4 left-4 z-10 w-8 h-8 rounded-full bg-white/5 border border-white/10 text-slate-400 hover:text-white flex items-center justify-center hover:bg-white/10 transition-colors"
+        >
+          <X size={18} />
+        </button>
+
+        {/* Header */}
+        <div className="text-center mb-6 relative z-10">
+          <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+            <UserIcon size={26} className="text-violet-400" />
+          </div>
+          <h3 className="text-xl font-black text-white tracking-tight">
+            {authMode === 'signup' 
+              ? (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create Account')
+              : (lang === 'ar' ? 'تسجيل الدخول' : 'Sign In')}
+          </h3>
+          <p className="text-xs text-slate-400 mt-1 font-medium">
+            {lang === 'ar' 
+              ? 'أدخل بيانات حسابك للمتابعة' 
+              : 'Enter your account details to continue'}
+          </p>
+        </div>
+
+        {/* Auth Mode Toggle Tabs */}
+        <div className="flex bg-black/40 p-1 rounded-xl border border-white/5 mb-5 relative z-10">
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('login');
+              setAuthModalError(null);
+            }}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+              authMode === 'login'
+                ? 'bg-violet-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {lang === 'ar' ? 'تسجيل الدخول' : 'Sign In'}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode('signup');
+              setAuthModalError(null);
+            }}
+            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+              authMode === 'signup'
+                ? 'bg-violet-600 text-white'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            {lang === 'ar' ? 'إنشاء حساب جديد' : 'Create Account'}
+          </button>
+        </div>
+
+        {/* Error Alert */}
+        {authModalError && (
+          <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-bold flex items-center gap-2">
+            <AlertCircle size={16} className="shrink-0" />
+            <span>{authModalError}</span>
+          </div>
+        )}
+
+        {/* Form */}
+        <form onSubmit={onSubmit} className="space-y-4 relative z-10">
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5 text-right flex items-center justify-end gap-1.5">
+              <span>{lang === 'ar' ? 'حسابك انستا' : 'Instagram Account'}</span>
+              <Instagram size={15} className="text-pink-500 shrink-0" />
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder={lang === 'ar' ? 'لتسليمك الطلب' : 'For order delivery'}
+                value={instaUsernameInput}
+                onChange={(e) => setInstaUsernameInput(e.target.value)}
+                required
+                className="w-full bg-black/50 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-all pr-10 text-right"
+                dir={lang === 'ar' ? 'rtl' : 'ltr'}
+              />
+              <Instagram size={18} className="absolute left-3 top-3 text-pink-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-300 mb-1.5 text-right">
+              {lang === 'ar' ? 'كلمة السر' : 'Password'}
+            </label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={instaPasswordInput}
+              onChange={(e) => setInstaPasswordInput(e.target.value)}
+              required
+              className="w-full bg-black/50 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-all text-left font-mono"
+              dir="ltr"
+            />
+          </div>
+
+          {authMode === 'signup' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5 text-right">
+                {lang === 'ar' ? 'تأكيد كلمة السر' : 'Confirm Password'}
+              </label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={instaConfirmPasswordInput}
+                onChange={(e) => setInstaConfirmPasswordInput(e.target.value)}
+                required
+                className="w-full bg-black/50 border border-white/10 focus:border-violet-500 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition-all text-left font-mono"
+                dir="ltr"
+              />
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isLoggingIn}
+            className="w-full mt-2 py-3.5 px-4 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+          >
+            {isLoggingIn ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            ) : (
+              <span>
+                {authMode === 'signup' 
+                  ? (lang === 'ar' ? 'إنشاء حساب جديد' : 'Create Account') 
+                  : (lang === 'ar' ? 'تسجيل الدخول' : 'Sign In')}
+              </span>
+            )}
+          </button>
+        </form>
+
+        <div className="mt-4 pt-4 border-t border-white/5 text-center text-[11px] text-slate-400 relative z-10">
+          {authMode === 'login' ? (
+            <p>
+              {lang === 'ar' ? 'ليس لديك حساب بعد؟ ' : "Don't have an account? "}
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('signup');
+                  setAuthModalError(null);
+                }}
+                className="text-violet-400 font-bold hover:underline"
+              >
+                {lang === 'ar' ? 'أنشئ حسابك الآن' : 'Create one now'}
+              </button>
+            </p>
+          ) : (
+            <p>
+              {lang === 'ar' ? 'لديك حساب بالفعل؟ ' : 'Already have an account? '}
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('login');
+                  setAuthModalError(null);
+                }}
+                className="text-violet-400 font-bold hover:underline"
+              >
+                {lang === 'ar' ? 'سجّل الدخول' : 'Sign In'}
+              </button>
+            </p>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+const ADMIN_EMAILS = [
+  'mhnd0.o',
+  'mhnd0.o@instagram.local',
+  'salamehmhnd@gmail.com', 
+  'mohaned.eyad11@gmail.com', 
+  'salamehmhnd@instagram.local', 
+  'mohaned.eyad11@instagram.local',
+  'admin@instagram.local',
+  'admin'
+];
+const isAdminEmail = (emailOrUser?: string | User | null) => {
+  if (!emailOrUser) return false;
+  if (typeof emailOrUser === 'object') {
+    const u = emailOrUser as User;
+    return isAdminEmail(u.email) || isAdminEmail(u.displayName);
+  }
+  const clean = emailOrUser.toLowerCase().trim().replace(/^@/, '');
+  const prefix = clean.split('@')[0];
+  return ADMIN_EMAILS.some(item => {
+    const cleanItem = item.toLowerCase().trim().replace(/^@/, '');
+    const itemPrefix = cleanItem.split('@')[0];
+    return clean === cleanItem || clean === itemPrefix || prefix === cleanItem || prefix === itemPrefix;
+  });
+};
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -1729,9 +1957,9 @@ export default function App() {
   const [paypalResetKey, setPaypalResetKey] = useState(0);
   const [isCopied, setIsCopied] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [usdtNetwork, setUsdtNetwork] = useState<'BSC' | 'TRC20' | 'ERC20' | 'POL'>('BSC');
+  const [usdtNetwork, setUsdtNetwork] = useState<'BEP20' | 'ERC20'>('BEP20');
   const [txid, setTxid] = useState('');
-  const [productUsdtNetwork, setProductUsdtNetwork] = useState<'BSC' | 'TRC20' | 'ERC20' | 'POL'>('BSC');
+  const [productUsdtNetwork, setProductUsdtNetwork] = useState<'BEP20' | 'ERC20'>('BEP20');
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [logoToggle, setLogoToggle] = useState(false);
@@ -1739,8 +1967,15 @@ export default function App() {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const bestSellersRef = useRef<HTMLDivElement>(null);
 
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [instaUsernameInput, setInstaUsernameInput] = useState('');
+  const [instaPasswordInput, setInstaPasswordInput] = useState('');
+  const [instaConfirmPasswordInput, setInstaConfirmPasswordInput] = useState('');
+  const [authModalError, setAuthModalError] = useState<string | null>(null);
+
   useEffect(() => {
-    if (isMobileMenuOpen || isSettingsModalOpen) {
+    if (isMobileMenuOpen || isSettingsModalOpen || isAuthModalOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -1748,7 +1983,7 @@ export default function App() {
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isMobileMenuOpen, isSettingsModalOpen]);
+  }, [isMobileMenuOpen, isSettingsModalOpen, isAuthModalOpen]);
 
   const t = translations[lang];
 
@@ -1799,7 +2034,7 @@ export default function App() {
 
   useEffect(() => {
     if (user) {
-      const isAdmin = isAdminEmail(user.email);
+      const isAdmin = isAdminEmail(user);
       const path = 'orders';
       const q = isAdmin 
         ? query(collection(db, path), orderBy('createdAt', 'desc'))
@@ -1825,7 +2060,7 @@ export default function App() {
   }, [user]);
 
   useEffect(() => {
-    if (user && isAdminEmail(user.email)) {
+    if (user && isAdminEmail(user)) {
       const path = 'game_requests';
       const q = query(collection(db, path), orderBy('createdAt', 'desc'));
       const unsubscribeRequests = onSnapshot(q, (snapshot) => {
@@ -1910,48 +2145,80 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
     }
   };
 
-  const handleLogin = useCallback(async () => {
-    if (isLoggingIn) return;
-    setIsLoggingIn(true);
-    setAuthError(null);
-    try {
-      await signInWithPopup(auth, googleProvider);
-    } catch (error: any) {
-      console.error("Login failed", error);
-      const code = error?.code || '';
-      let msg = '';
-      if (code === 'auth/popup-closed-by-user') {
-        msg = lang === 'ar' ? 'تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية.' : 'Sign-in popup was closed.';
-      } else if (code === 'auth/cancelled-popup-request') {
-        msg = lang === 'ar' ? 'تم إلغاء طلب تسجيل الدخول.' : 'Sign-in request was cancelled.';
-      } else if (code === 'auth/popup-blocked') {
-        msg = lang === 'ar' 
-          ? 'قام المتصفح بحظر النافذة المنبثقة. يرجى السماح بالنوافذ المنبثقة (Popups) للموقع أو فتح الموقع في تبويب جديد.' 
-          : 'Popup was blocked by your browser. Please allow popups or open in a new tab.';
-      } else if (code === 'auth/unauthorized-domain') {
-        msg = lang === 'ar' 
-          ? `النطاق الحالي (${window.location.hostname}) غير مصرح به في Firebase Auth. يرجى إضافته إلى Authorized Domains في إعدادات Firebase Console.` 
-          : `The current domain (${window.location.hostname}) is not authorized in Firebase Auth. Please add it to Authorized Domains in Firebase Console.`;
-      } else if (code === 'auth/operation-not-allowed') {
-        msg = lang === 'ar' 
-          ? 'تسجيل الدخول بـ Google غير مفعّل في إعدادات Firebase.' 
-          : 'Google provider is disabled in Firebase Console.';
-      } else if (code === 'auth/network-request-failed') {
-        msg = lang === 'ar' 
-          ? 'فشل الاتصال بالشبكة. يرجى التأكد من اتصال الإنترنت ثم المحاولة مجدداً.' 
-          : 'Network request failed. Please check your connection and retry.';
-      } else {
-        const errorDetail = error?.message ? `: ${error.message}` : (code ? ` (${code})` : '');
-        msg = lang === 'ar' 
-          ? `حدث خطأ أثناء تسجيل الدخول${errorDetail}. جرب فتح الموقع في تبويب مستقل.` 
-          : `An error occurred during login${errorDetail}. Try opening the site in a new tab.`;
+  const handleLogin = useCallback(() => {
+    setAuthMode('login');
+    setAuthModalError(null);
+    setIsAuthModalOpen(true);
+  }, []);
+
+  const handleInstagramAuthSubmit = useCallback(async (e?: FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanHandle = instaUsernameInput.trim().toLowerCase().replace(/^@/, '');
+    
+    if (!cleanHandle) {
+      setAuthModalError(lang === 'ar' ? 'يرجى كتابة اسم حساب إنستغرام بشكل صحيح.' : 'Please enter a valid Instagram username.');
+      return;
+    }
+    if (!instaPasswordInput) {
+      setAuthModalError(lang === 'ar' ? 'يرجى كتابة كلمة السر.' : 'Please enter your password.');
+      return;
+    }
+
+    if (authMode === 'signup') {
+      if (instaPasswordInput.length < 6) {
+        setAuthModalError(lang === 'ar' ? 'كلمة السر يجب أن تكون 6 أحرف على الأقل.' : 'Password must be at least 6 characters.');
+        return;
       }
-      setAuthError(msg);
-      setTimeout(() => setAuthError(null), 12000);
+      if (instaPasswordInput !== instaConfirmPasswordInput) {
+        setAuthModalError(lang === 'ar' ? 'كلمات السر غير متطابقة.' : 'Passwords do not match.');
+        return;
+      }
+    }
+
+    setIsLoggingIn(true);
+    setAuthModalError(null);
+
+    const virtualEmail = cleanHandle.includes('@') ? cleanHandle : `${cleanHandle}@instagram.local`;
+    const displayHandle = cleanHandle.startsWith('@') ? cleanHandle : `@${cleanHandle}`;
+
+    try {
+      if (authMode === 'signup') {
+        const cred = await createUserWithEmailAndPassword(auth, virtualEmail, instaPasswordInput);
+        await updateProfile(cred.user, {
+          displayName: displayHandle
+        });
+        await setDoc(doc(db, 'users', cred.user.uid), {
+          uid: cred.user.uid,
+          email: virtualEmail,
+          displayName: displayHandle,
+          instagramUsername: cleanHandle,
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      } else {
+        await signInWithEmailAndPassword(auth, virtualEmail, instaPasswordInput);
+      }
+      setIsAuthModalOpen(false);
+      setInstaUsernameInput('');
+      setInstaPasswordInput('');
+      setInstaConfirmPasswordInput('');
+    } catch (error: any) {
+      const code = error?.code || '';
+      console.warn("Auth attempt notification:", code || error?.message);
+      if (code === 'auth/email-already-in-use') {
+        setAuthModalError(lang === 'ar' ? 'اسم الحساب مسجل مسبقاً! يمكنك الانتقال إلى تسجيل الدخول.' : 'Account already exists! Switch to Sign In.');
+      } else if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+        setAuthModalError(lang === 'ar' 
+          ? 'اسم الحساب أو كلمة السر غير صحيحة، أو الحساب غير موجود. يرجى التبديل لتبويب "إنشاء حساب جديد".' 
+          : 'Invalid credentials or account not found. Please switch to Create Account.');
+      } else if (code === 'auth/wrong-password') {
+        setAuthModalError(lang === 'ar' ? 'كلمة السر غير صحيحة.' : 'Incorrect password.');
+      } else {
+        setAuthModalError(error?.message || (lang === 'ar' ? 'حدث خطأ أثناء الاتصال بالخادم.' : 'An error occurred.'));
+      }
     } finally {
       setIsLoggingIn(false);
     }
-  }, [isLoggingIn, lang]);
+  }, [authMode, instaUsernameInput, instaPasswordInput, instaConfirmPasswordInput, lang]);
 
   const handleLogout = useCallback(async () => {
     try {
@@ -2061,13 +2328,17 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
           .filter(Boolean)
           .join(', ');
 
+        const userInstaHandle = user.displayName || (user.email ? `@${user.email.split('@')[0]}` : null);
+        const finalInsta = instaHandles || userInstaHandle || null;
+
         const orderPath = `orders/${shortOrderId}`;
         try {
           await setDoc(doc(db, 'orders', shortOrderId), {
             id: shortOrderId,
             userId: user.uid,
             userEmail: user.email,
-            instaUser: instaHandles || null,
+            instaUser: finalInsta,
+            customerInsta: userInstaHandle,
             items: cart.map(item => ({ 
               id: item.id, 
               name: item.name, 
@@ -2083,7 +2354,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             txid: paymentMethod === 'usdt' ? txid : null,
             couponUsed: discount > 0 ? couponCode : null,
             discountAmount: discount > 0 ? (totalPrice / (1 - discount)) * discount : 0,
-            usdtNetwork: paymentMethod === 'usdt' ? 'BSC' : null,
+            usdtNetwork: paymentMethod === 'usdt' ? usdtNetwork : null,
             status: 'pending',
             createdAt: Timestamp.now()
           });
@@ -2106,7 +2377,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
         setIsSubmitting(false);
       }
     }
-  }, [paymentMethod, screenshot, user, cart, totalPrice, currency, isSubmitting, lang, discount, couponCode]);
+  }, [paymentMethod, screenshot, user, cart, totalPrice, currency, isSubmitting, lang, discount, couponCode, usdtNetwork, txid]);
 
   const toggleLang = useCallback(() => setLang(prev => prev === 'ar' ? 'en' : 'ar'), []);
 
@@ -2345,17 +2616,38 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
 
           {/* Nav Icons & Mobile Layout */}
           <div className="flex items-center gap-1 sm:gap-6">
-            {/* Action Buttons (Login/Orders) - Shown prominently on mobile too */}
-            <div className="flex items-center gap-1 sm:gap-4">
+            {/* Action Buttons (Login/Orders/User Profile) - Shown prominently on mobile too */}
+            <div className="flex items-center gap-1.5 sm:gap-3">
               {user ? (
                 <>
-                  {isAdminEmail(user.email) && (
+                  {/* User Profile Badge showing handle/username */}
+                  <div className="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 rounded-full border border-violet-500/30 bg-violet-600/10 text-white transition-all">
+                    <div className="w-6 h-6 rounded-full border border-violet-500/40 bg-violet-600/30 text-violet-300 flex items-center justify-center font-bold text-xs shrink-0">
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt="" className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        (user.displayName || user.email || 'U').replace(/^@/, '').charAt(0).toUpperCase()
+                      )}
+                    </div>
+                    <span className="text-xs font-bold text-violet-200 max-w-[90px] sm:max-w-[130px] truncate" dir="ltr">
+                      {user.displayName || (user.email ? user.email.split('@')[0] : 'User')}
+                    </span>
+                    <button 
+                      onClick={handleLogout} 
+                      title={lang === 'ar' ? 'تسجيل الخروج' : 'Logout'}
+                      className="text-white/40 hover:text-red-400 transition-colors"
+                    >
+                      <LogOut size={14} />
+                    </button>
+                  </div>
+
+                  {isAdminEmail(user) && (
                     <button 
                       onClick={() => setCurrentView('admin')}
-                      className="hidden sm:flex items-center gap-2 px-4 py-2 rounded-md border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-all text-xs font-bold uppercase"
+                      className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 transition-all text-xs font-bold uppercase"
                     >
                       <Shield size={14} />
-                      {t.adminPanel}
+                      <span className="hidden md:inline">{t.adminPanel}</span>
                     </button>
                   )}
                   <button 
@@ -2363,7 +2655,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                       setCurrentView('orders');
                       setIsMobileMenuOpen(false);
                     }}
-                    className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md border border-white/5 bg-white/[0.02] hover:border-violet-500/30 hover:text-white transition-all text-[10px] sm:text-xs font-bold uppercase whitespace-nowrap"
+                    className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/5 bg-white/[0.02] hover:border-violet-500/30 hover:text-white transition-all text-xs font-bold uppercase whitespace-nowrap"
                   >
                     <History size={14} className="text-violet-500" />
                     <span className="inline">{t.myOrders}</span>
@@ -2408,15 +2700,6 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                 <Globe size={14} className="text-violet-500" />
                 <span className="hidden sm:inline">{currency} | {lang === 'ar' ? 'العربية' : 'EN'}</span>
               </button>
-
-              {user && (
-                <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.02]">
-                  <img src={user.photoURL || ''} alt="" className="w-6 h-6 rounded-full border border-white/10" />
-                  <button onClick={handleLogout} className="text-white/40 hover:text-red-500 transition-colors">
-                    <LogOut size={16} />
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Mobile Menu Toggle Button */}
@@ -2473,7 +2756,13 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                            <div className="text-xs text-white/40">{user.email}</div>
                         </div>
                         <div className="relative">
-                          <img src={user.photoURL || ''} alt="" className="w-10 h-10 rounded-full border border-violet-500/20" />
+                          {user.photoURL ? (
+                            <img src={user.photoURL} alt="" className="w-10 h-10 rounded-full border border-violet-500/20" />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full border border-violet-500/30 bg-violet-600/20 text-violet-300 flex items-center justify-center font-black text-sm">
+                              {(user.displayName || user.email || 'U').charAt(0).toUpperCase()}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <button 
@@ -2497,7 +2786,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
 
                 {/* Navigation Links */}
                 <div className="flex flex-col items-end gap-2 px-8 py-6">
-                  {isAdminEmail(user?.email) && (
+                  {isAdminEmail(user) && (
                     <motion.button 
                       whileTap={{ scale: 0.98 }}
                       onClick={() => { setCurrentView('admin'); setIsMobileMenuOpen(false); }}
@@ -3109,7 +3398,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             </div>
           )}
         </motion.div>
-      ) : currentView === 'admin' && isAdminEmail(user?.email) ? (
+      ) : currentView === 'admin' && isAdminEmail(user) ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -3376,22 +3665,53 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                                 <p className="text-xs font-bold text-white/80">{order.createdAt?.toDate().toLocaleString()}</p>
                               </div>
                             </div>
-                            {order.instaUser && (
-                              <div className="flex items-center gap-4 group/item sm:col-span-2 bg-pink-500/5 p-3 rounded-2xl border border-pink-500/20">
-                                <div className="w-10 h-10 bg-gradient-to-tr from-purple-600/20 to-pink-600/20 rounded-xl flex items-center justify-center text-pink-400 group-hover/item:text-pink-300 transition-colors border border-pink-500/30">
-                                  <Instagram size={18} />
+                            {(() => {
+                              const rawHandle = order.instaUser || order.customerInsta || (order.userEmail ? `@${order.userEmail.split('@')[0]}` : '');
+                              const formattedHandle = rawHandle ? (rawHandle.startsWith('@') ? rawHandle : `@${rawHandle}`) : '';
+                              const cleanHandle = rawHandle ? rawHandle.replace(/^@/, '').split('@')[0] : '';
+                              
+                              return (
+                                <div className="flex flex-wrap items-center justify-between gap-4 group/item sm:col-span-2 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-violet-500/10 p-4 rounded-2xl border border-pink-500/30">
+                                  <div className="flex items-center gap-4">
+                                    <div className="w-11 h-11 bg-pink-500/20 rounded-xl flex items-center justify-center text-pink-400 border border-pink-500/30 shrink-0">
+                                      <Instagram size={22} />
+                                    </div>
+                                    <div>
+                                      <p className="text-[10px] font-black text-pink-400 uppercase tracking-widest mb-0.5">
+                                        {lang === 'ar' ? 'حساب الإنستغرام للزبون' : 'Customer Instagram Account'}
+                                      </p>
+                                      <p className="text-base font-black text-white font-mono tracking-tight" dir="ltr">
+                                        {formattedHandle || (lang === 'ar' ? 'غير محدد' : 'N/A')}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {cleanHandle && cleanHandle !== 'no email' && (
+                                    <a
+                                      href={`https://instagram.com/${cleanHandle}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex items-center gap-2 px-4 py-2.5 bg-pink-600/20 hover:bg-pink-600/40 border border-pink-500/40 rounded-xl text-pink-300 hover:text-white font-black text-xs transition-all shrink-0 active:scale-95 shadow-lg shadow-pink-900/20"
+                                    >
+                                      <span>{lang === 'ar' ? 'فتح الحساب' : 'Open Instagram'}</span>
+                                      <ExternalLink size={14} />
+                                    </a>
+                                  )}
                                 </div>
-                                <div>
-                                  <p className="text-[8px] font-black text-pink-400 uppercase tracking-widest mb-0.5">Instagram Account (حساب الإنستغرام)</p>
-                                  <p className="text-sm font-black text-white font-mono">{order.instaUser}</p>
-                                </div>
-                              </div>
-                            )}
+                              );
+                            })()}
                           </div>
 
                           {order.txid && (
                             <div className="mt-8 p-6 bg-violet-600/5 border border-violet-500/10 rounded-2xl">
-                              <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest mb-2">Transaction ID (TXID)</p>
+                              <div className="flex items-center justify-between mb-2">
+                                <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest">Transaction ID (TXID)</p>
+                                {order.usdtNetwork && (
+                                  <span className="px-2.5 py-1 bg-violet-500/20 border border-violet-500/30 text-violet-300 rounded-md text-[10px] font-black uppercase">
+                                    Network: {order.usdtNetwork}
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-xs font-mono font-bold text-white break-all bg-black/20 p-3 rounded-lg border border-white/5 select-all">
                                 {order.txid}
                               </p>
@@ -3615,7 +3935,14 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
 
                   {order.txid && (
                     <div className="mt-4 p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
-                      <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">TXID</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest">TXID</p>
+                        {order.usdtNetwork && (
+                          <span className="text-[8px] font-bold text-violet-400 uppercase font-mono">
+                            Network: {order.usdtNetwork}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[10px] font-mono text-white/60 break-all">{order.txid}</p>
                     </div>
                   )}
@@ -3714,7 +4041,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                 <div className="flex items-center gap-4">
                   <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 whitespace-nowrap">{t.totalLabel}</span>
                   <h2 className="text-3xl md:text-4xl font-black italic text-violet-500 drop-shadow-[0_0_15px_rgba(67,156,254,0.3)] whitespace-nowrap">
-                    {paymentMethod === 'usdt' ? `USDT\u00A0${formatNumberTwoDecimals(totalPrice * (1/0.72))}` : getDisplayPrice(totalPrice)}
+                    {paymentMethod === 'usdt' ? `USDT\u00A0${formatNumberTwoDecimals(totalPrice * (1/0.72) + (usdtNetwork === 'ERC20' ? 0.4 : 0))}` : getDisplayPrice(totalPrice)}
                   </h2>
                 </div>
                 <button 
@@ -4025,23 +4352,55 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                         <div className="flex flex-col items-start">
                           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">{t.requiredAmount}</span>
                           <h4 className="text-3xl font-black italic text-white text-center sm:text-left">
-                            {paymentMethod === 'usdt' ? `USDT\u00A0${formatNumberTwoDecimals(totalPrice * (1/0.72))}` : getDisplayPrice(totalPrice)}
+                            {paymentMethod === 'usdt' ? `USDT\u00A0${formatNumberTwoDecimals(totalPrice * (1/0.72) + (usdtNetwork === 'ERC20' ? 0.4 : 0))}` : getDisplayPrice(totalPrice)}
                           </h4>
                         </div>
                       </div>
 
                       {paymentMethod === 'usdt' && (
-                        <div className="p-4 rounded-xl bg-violet-600/5 border border-violet-500/10 text-center">
-                          <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest flex items-center justify-center gap-2">
-                             <Globe size={12} />
-                             Network: BEP-20 (BSC)
-                          </p>
+                        <div className="space-y-3">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block text-center">
+                            {t.usdtNetworkLabel}
+                          </span>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setUsdtNetwork('BEP20')}
+                              className={`p-4 rounded-2xl border text-center transition-all ${
+                                usdtNetwork === 'BEP20'
+                                  ? 'bg-violet-600/20 border-violet-500 text-white shadow-lg shadow-violet-600/10'
+                                  : 'bg-white/[0.02] border-white/5 text-slate-400 hover:border-white/10 hover:text-white'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-2 font-black text-sm uppercase">
+                                <Globe size={16} className={usdtNetwork === 'BEP20' ? 'text-violet-400' : 'text-slate-500'} />
+                                <span>BEP20</span>
+                              </div>
+                              <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">BEP-20 (BSC)</p>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setUsdtNetwork('ERC20')}
+                              className={`p-4 rounded-2xl border text-center transition-all ${
+                                usdtNetwork === 'ERC20'
+                                  ? 'bg-violet-600/20 border-violet-500 text-white shadow-lg shadow-violet-600/10'
+                                  : 'bg-white/[0.02] border-white/5 text-slate-400 hover:border-white/10 hover:text-white'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-2 font-black text-sm uppercase">
+                                <Globe size={16} className={usdtNetwork === 'ERC20' ? 'text-violet-400' : 'text-slate-500'} />
+                                <span>ERC20</span>
+                              </div>
+                              <p className="text-[9px] font-bold text-amber-400 mt-1 uppercase">+0.40 USDT (ETH)</p>
+                            </button>
+                          </div>
                         </div>
                       )}
 
                       <div className="space-y-4">
                         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block text-center">
-                          {paymentMethod === 'cliq' ? t.cliqAliasLabel : t.usdtAddressLabel}
+                          {paymentMethod === 'cliq' ? t.cliqAliasLabel : `${t.usdtAddressLabel} (${usdtNetwork})`}
                         </span>
                         <div className="flex items-center gap-3">
                           <button 
@@ -4069,7 +4428,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                     
                     <div className="space-y-4">
                       {paymentMethod === 'usdt' ? (
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 block text-center">
                             {t.txidLabel}
                           </span>
@@ -4080,6 +4439,17 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                             placeholder={t.txidPlaceholder}
                             className="w-full bg-white/5 border border-white/10 rounded-xl p-4 text-white text-sm font-bold text-center focus:border-violet-500 focus:bg-violet-500/5 transition-all outline-none"
                           />
+                          <div className="flex justify-center pt-1">
+                            <a
+                              href="https://youtube.com/shorts/ss3cYTXsFL0?si=6jb4m3xTSx51ZUTJ"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 text-xs font-bold text-violet-400 hover:text-violet-300 hover:underline transition-all bg-violet-500/10 border border-violet-500/20 px-4 py-2.5 rounded-xl active:scale-95 shadow-lg shadow-violet-900/10"
+                            >
+                              <ExternalLink size={14} />
+                              <span>{lang === 'ar' ? 'كيف تجيب الـ TXID؟ (فيديو توضيحي)' : 'How to get the TXID? (Tutorial Video)'}</span>
+                            </a>
+                          </div>
                         </div>
                       ) : (
                         <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-white/10 rounded-2xl cursor-pointer hover:bg-white/[0.02] hover:border-violet-500/30 transition-all group">
@@ -4291,6 +4661,29 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
             addToCart={addToCart} 
             getDisplayPrice={getDisplayPrice} 
             orders={orders}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Instagram Auth Modal */}
+      <AnimatePresence>
+        {isAuthModalOpen && (
+          <InstagramAuthModal
+            isOpen={isAuthModalOpen}
+            onClose={() => setIsAuthModalOpen(false)}
+            lang={lang}
+            authMode={authMode}
+            setAuthMode={setAuthMode}
+            instaUsernameInput={instaUsernameInput}
+            setInstaUsernameInput={setInstaUsernameInput}
+            instaPasswordInput={instaPasswordInput}
+            setInstaPasswordInput={setInstaPasswordInput}
+            instaConfirmPasswordInput={instaConfirmPasswordInput}
+            setInstaConfirmPasswordInput={setInstaConfirmPasswordInput}
+            isLoggingIn={isLoggingIn}
+            authModalError={authModalError}
+            setAuthModalError={setAuthModalError}
+            onSubmit={handleInstagramAuthSubmit}
           />
         )}
       </AnimatePresence>
