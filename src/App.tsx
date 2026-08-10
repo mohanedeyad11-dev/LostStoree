@@ -865,7 +865,7 @@ const InfoPage = ({ title, content, backToShop, onBack, logoToggle }: { title: s
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="text-6xl md:text-7xl font-black uppercase italic tracking-tighter text-white mb-8 relative"
+        className="text-3xl sm:text-5xl md:text-6xl font-extrabold text-white mb-8 relative leading-snug"
       >
         <span className="relative z-10">{title}</span>
         <div className="absolute -bottom-2 left-0 w-full h-1 bg-gradient-to-r from-transparent via-violet-500 to-transparent opacity-50 blur-[1px]"></div>
@@ -1558,12 +1558,6 @@ const ProductDetailModal = ({ product, onClose, lang, addToCart, getDisplayPrice
                 <span className="text-amber-400 font-black cursor-pointer hover:underline">
                   {product.category === 'accounts' ? 'حسابات ألعاب' : 'ألعاب رقمية'}
                 </span>
-              </div>
-
-              {/* Sales Banner */}
-              <div className="w-full bg-gradient-to-r from-red-900/60 to-red-950/80 border border-red-500/40 text-red-200 text-xs sm:text-sm font-black py-2.5 px-4 rounded-xl text-center shadow-lg flex items-center justify-center gap-2 my-1">
-                <span className="text-white text-base font-mono">{realPurchaseCount}</span>
-                <span>{lang === 'ar' ? 'عدد مرات الشراء 💥' : 'Purchases 💥'}</span>
               </div>
             </div>
 
@@ -2504,35 +2498,17 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
   }, [currentView, productSearchTerm]);
 
   const bestSellingProducts = useMemo(() => {
-    const defaultFeaturedIds = [101, 7, 3, 106, 110, 108, 105, 113, 112, 114];
-
-    const getProductSales = (product: Product) => {
-      return getProductSalesCount(product, orders);
-    };
-
-    const productsWithSales = products.map((product, originalIndex) => {
-      const sales = getProductSales(product);
-      const featuredRank = defaultFeaturedIds.indexOf(product.id);
-      return {
-        product,
-        sales,
-        featuredRank: featuredRank !== -1 ? featuredRank : 999,
-        originalIndex,
-      };
-    });
-
-    productsWithSales.sort((a, b) => {
-      if (b.sales !== a.sales) {
-        return b.sales - a.sales;
-      }
-      if (a.featuredRank !== b.featuredRank) {
-        return a.featuredRank - b.featuredRank;
-      }
-      return a.originalIndex - b.originalIndex;
-    });
-
-    return productsWithSales.slice(0, 6).map(item => item.product);
-  }, [orders]);
+    // 1. حساب FC 27 - نسخة الستاندرد (101)
+    // 2. Red Dead Redemption 2 (7)
+    // 3. حساب Arc Raiders (3)
+    // 4. Resident Evil 4 Remake (110)
+    // 5. GTA V - نسخة البريميوم (6)
+    // 6. حساب Dead by Daylight (107)
+    const bestSellerIds = [101, 7, 3, 110, 6, 107];
+    return bestSellerIds
+      .map(id => products.find(p => p.id === id))
+      .filter((p): p is Product => p !== undefined);
+  }, []);
 
   return (
     <div 
@@ -2753,7 +2729,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                       <div className="flex items-center justify-end gap-3 p-4 rounded-xl bg-white/[0.02] border border-white/5">
                         <div className="text-right">
                            <div className="text-sm font-black text-white">{user.displayName}</div>
-                           <div className="text-xs text-white/40">{user.email}</div>
+                           <div className="text-xs text-white/40">{user.email ? user.email.replace(/@instagram\.local$/i, '') : ''}</div>
                         </div>
                         <div className="relative">
                           {user.photoURL ? (
@@ -4444,10 +4420,10 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                               href="https://youtube.com/shorts/ss3cYTXsFL0?si=6jb4m3xTSx51ZUTJ"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 text-xs font-bold text-violet-400 hover:text-violet-300 hover:underline transition-all bg-violet-500/10 border border-violet-500/20 px-4 py-2.5 rounded-xl active:scale-95 shadow-lg shadow-violet-900/10"
+                              className="inline-flex items-center gap-2 text-xs sm:text-sm font-bold text-sky-400 hover:text-sky-300 transition-all bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 px-4 py-2.5 rounded-xl active:scale-95 shadow-lg shadow-sky-950/30"
                             >
-                              <ExternalLink size={14} />
-                              <span>{lang === 'ar' ? 'كيف تجيب الـ TXID؟ (فيديو توضيحي)' : 'How to get the TXID? (Tutorial Video)'}</span>
+                              <ExternalLink size={14} className="text-sky-400" />
+                              <span>{lang === 'ar' ? 'كيف تجيب الـ TXID؟' : 'How to get the TXID?'}</span>
                             </a>
                           </div>
                         </div>
@@ -4578,7 +4554,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                   setCurrentView('about');
                   window.scrollTo(0, 0);
                 }}
-                className="text-[11px] font-black uppercase tracking-[0.4em] text-white hover:text-violet-500 transition-all underline decoration-violet-500/10 underline-offset-8 decoration-2 hover:decoration-violet-500"
+                className="text-xs sm:text-sm font-bold text-slate-200 hover:text-violet-400 transition-all underline decoration-violet-500/20 underline-offset-8 decoration-2 hover:decoration-violet-500"
               >
                 {t.aboutUs.title}
               </button>
@@ -4588,7 +4564,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                   setCurrentView('privacy');
                   window.scrollTo(0, 0);
                 }}
-                className="text-[11px] font-black uppercase tracking-[0.4em] text-white hover:text-violet-500 transition-all underline decoration-violet-500/10 underline-offset-8 decoration-2 hover:decoration-violet-500"
+                className="text-xs sm:text-sm font-bold text-slate-200 hover:text-violet-400 transition-all underline decoration-violet-500/20 underline-offset-8 decoration-2 hover:decoration-violet-500"
               >
                 {t.privacyPolicy.title}
               </button>
@@ -4598,7 +4574,7 @@ To integrate real emails, consider using EmailJS (client-side) or Firebase Cloud
                   setCurrentView('returns');
                   window.scrollTo(0, 0);
                 }}
-                className="text-[11px] font-black uppercase tracking-[0.4em] text-white hover:text-violet-500 transition-all underline decoration-violet-500/10 underline-offset-8 decoration-2 hover:decoration-violet-500"
+                className="text-xs sm:text-sm font-bold text-slate-200 hover:text-violet-400 transition-all underline decoration-violet-500/20 underline-offset-8 decoration-2 hover:decoration-violet-500"
               >
                 {t.returnPolicy.title}
               </button>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { MessageSquarePlus, Send, CheckCircle2, AlertCircle, LogIn, Mail } from 'lucide-react';
+import { MessageSquarePlus, Send, CheckCircle2, AlertCircle, LogIn, Instagram } from 'lucide-react';
 import { db, collection, addDoc, Timestamp } from '../firebase';
 
 interface AskForGameProps {
@@ -25,6 +25,9 @@ export const AskForGame = ({ lang, userId, userEmail, onLoginClick }: AskForGame
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const cleanHandle = userEmail ? userEmail.replace(/@instagram\.local$/i, '') : '';
+  const displayHandle = cleanHandle ? (cleanHandle.includes('@') ? cleanHandle : `@${cleanHandle}`) : '';
+
   const t = {
     title: lang === 'ar' ? 'اسأل عن لعبة ؟' : 'Ask for a Game?',
     subtitle: lang === 'ar' 
@@ -42,8 +45,8 @@ export const AskForGame = ({ lang, userId, userEmail, onLoginClick }: AskForGame
     errorRequired: lang === 'ar' ? 'يرجى إدخال اسم اللعبة.' : 'Please enter the game name.',
     errorGeneric: lang === 'ar' ? 'عذراً، حدث خطأ أثناء إرسال طلبك. يرجى المحاولة مرة أخرى.' : 'Sorry, an error occurred while sending your request. Please try again.',
     loginMessage: lang === 'ar' ? 'يرجى تسجيل الدخول لتتمكن من إرسال طلب توفير لعبة.' : 'Please log in to request a game.',
-    loginBtn: lang === 'ar' ? 'تسجيل الدخول باستخدام Google' : 'Sign In with Google',
-    registeredEmailLabel: lang === 'ar' ? 'سيتم التواصل معك عبر بريدك الإلكتروني المسجل:' : 'You will be contacted via your registered email:'
+    loginBtn: lang === 'ar' ? 'تسجيل الدخول' : 'Sign In',
+    registeredEmailLabel: lang === 'ar' ? 'سيتم التواصل معك عبر حسابك انستا:' : 'We will contact you via your Instagram account:'
   };
 
   const handleFirestoreError = (err: unknown, operationType: OperationType, path: string | null) => {
@@ -78,7 +81,7 @@ export const AskForGame = ({ lang, userId, userEmail, onLoginClick }: AskForGame
       const payload: any = {
         userId: userId,
         gameTitle: gameTitle.trim(),
-        contactInfo: userEmail,
+        contactInfo: displayHandle || cleanHandle || userEmail,
         status: 'pending',
         createdAt: Timestamp.now()
       };
@@ -158,10 +161,10 @@ export const AskForGame = ({ lang, userId, userEmail, onLoginClick }: AskForGame
 
                   {userEmail && (
                     <div className="p-4 bg-white/[0.01] border border-white/5 rounded-2xl flex items-center gap-3 text-slate-400 text-xs font-bold">
-                      <Mail size={16} className="text-violet-400 shrink-0" />
+                      <Instagram size={16} className="text-pink-400 shrink-0" />
                       <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                         <span>{t.registeredEmailLabel}</span>
-                        <span className="text-violet-400 font-mono text-sm tracking-normal">{userEmail}</span>
+                        <span className="text-violet-400 font-mono text-sm tracking-normal">{displayHandle || cleanHandle || userEmail}</span>
                       </div>
                     </div>
                   )}
