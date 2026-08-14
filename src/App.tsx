@@ -1104,84 +1104,116 @@ const ProductCard = ({ product, lang, addToCart, getDisplayPrice, onSelectProduc
 
 const GAME_DESCRIPTIONS: Record<number, Record<Language, string>> = {
   6: { // GTA V - Premium Edition
-    ar: "جراند ثيفت أوتو V: النسخة البريميوم تتضمن القصة الكاملة للعبة GTA V، وإمكانية الدخول المجاني لعالم Grand Theft Auto Online المتجدد باستمرار، بالإضافة إلى حزمة ملحقات الولاية المالية (Criminal Enterprise Starter Pack) لبدء إمبراطوريتك الإجرامية بأفضل المزايا والمكافآت.",
-    en: "Grand Theft Auto V: Premium Edition includes the complete GTA V story experience, free access to the ever-evolving Grand Theft Auto Online, and the Criminal Enterprise Starter Pack to jumpstart your criminal empire."
+    ar: "🔥 العرض الأقوى والأكثر طلباً! امتلك النسخة البريميوم الكاملة من GTA V مع حزمة البداية المالية (Criminal Enterprise) واللعب أونلاين مدى الحياة. منتج رسمي 100% بأرخص سعر مضمون لبدء المتعة وبناء إمبراطوريتك الآن!",
+    en: "🔥 Best-selling blockbuster offer! Get the full GTA V Premium Edition with Criminal Enterprise Starter Pack and unlimited GTA Online access. 100% official product at the lowest price guaranteed with fast delivery!"
   },
   7: { // Red Dead Redemption 2
-    ar: "ملحمة الغرب الأمريكي الأسطورية من Rockstar Games. عِش تجربة آرثر مورجان وعصابة فان دير ليند في رحلة ملحمية عبر أمريكا الشاسعة والقاسية للبقاء على قيد الحياة عند فجر العصر الحديث، والحائزة على أكثر من 175 جائزة لعبة العام.",
-    en: "Rockstar Games' epic tale of life in America’s unforgiving heartland. Experience Arthur Morgan and the Van der Linde gang as they flee federal agents and bounty hunters across a vast, immersive open world."
+    ar: "🏆 التحفة الفنية الأعظم في تاريخ الألعاب! عش أضخم تجربة واقعية سينمائية لا تُنسى بأعلى تقييم عالمي. احصل على نسختك الأصلية المضمونة الآن بسعر استثنائي لا يتكرر مع ضمان متجر Lost الذهبي!",
+    en: "🏆 The greatest gaming masterpiece of all time! Experience the ultimate open-world adventure at an unbeatable limited-time price with full warranty from Lost Store!"
   },
   8: { // Arc Raiders
-    ar: "لعبة إطلاق نار واستخراج تعاونية مجانية من منظور الشخص الثالث، حيث يتعاون اللاعبون كـ Raiders للدفاع عن الأرض وضمان بقاء البشرية ضد آلات الفضاء الغاشمة ARC في معارك تكتيكية حماسية.",
-    en: "A cooperative third-person extraction shooter where Raiders team up to defend Earth and survive against ruthless mechanical threats from space."
+    ar: "⚡ اللعبة الأكثر ترقباً وإثارة! جهز عتادك وانضم لأقوى المعارك التكتيكية الحماسية مع أصدقائك. احجز نسختك الرسمية الآن بأفضل سعر قبل الجميع مع تسليم سريع ومباشر!",
+    en: "⚡ The most anticipated tactical co-op shooter! Gear up and secure your official copy now at the best launch price with fast fulfillment!"
   },
   10: { // Tekken 8
-    ar: "الفصل الجديد في سلسلة ألعاب القتال العريقة من Bandai Namco. تتميز بتواجد 32 مقاتلاً تم إعادة تصميمهم بالكامل بأسلوب بصري مذهل مع نظام القتال الجديد الحماسي Heat System لمواجهات قتالية مدمّرة.",
-    en: "The next chapter in the legendary fighting franchise. Features 32 redesigned fighters rendered with cutting-edge visuals and the dynamic new Heat combat system."
+    ar: "🥊 ملك ألعاب القتال بلا منازع! رسومات سينمائية جبارة ونظام قتال جديد ومميز يرفع الأدرينالين. اطلب نسختك الرسمية الآن بأقل سعر في السوق وانطلق لسحق خصومك أونلاين!",
+    en: "🥊 The undisputed king of fighting games! Next-gen graphics and bone-crushing action. Grab your official key now at a special price and conquer the arena!"
   },
   24: { // UNCHARTED: Legacy of Thieves Collection
-    ar: "تتضمن المغامرتين الملحميتين الفائزتين بالجوائز: UNCHARTED 4: A Thief's End و UNCHARTED: The Lost Legacy. خض مغامرات نايثان دريك وكلوفر فريزر في البحث عن الكنوز التاريخية المفقودة حول العالم مع تحسينات بصرية مدهشة على الكومبيوتر.",
-    en: "Includes the critically acclaimed single-player adventures: UNCHARTED 4: A Thief's End and UNCHARTED: The Lost Legacy, remastered with stunning PC visual improvements."
+    ar: "💎 رحلة البحث عن الكنوز والمغامرة العالمية الأكثر تشويقاً في تاريخ الألعاب! رسوم مدهشة وأكشن متواصل لا يهدأ. اقتنص هذا العرض التوفيري الخارق واستمتع بمغامرة أسطورية لا تُنسى!",
+    en: "💎 The thrilling globe-trotting treasure hunt adventure remastered with stunning visuals! Incredible value and fast delivery from Lost Store!"
   },
   25: { // God of War
-    ar: "مغامرة كريتوس وابنه آتريوس في عالم الأساطير النوردية القاسية. ملحمة حماسية تجمع بين القتال الملحمي بفأس ليفياثان والقصة المؤثرة والرسوم المذهلة والدعم الكامل لأجهزة الكومبيوتر.",
-    en: "Journey with Kratos and Atreus through harsh Norse realms. Experience epic combat, deeply emotional storytelling, and high-performance PC graphics."
+    ar: "🪓 الملحمة الأسطورية لكريتوس وآتريوس بأعلى تقييم ورسوم مذهلة! قتال ملحمي وقصة تخطف القلوب. احصل على نسختك الأصلية بأفضل وأرخص سعر مضمون من متجر Lost!",
+    en: "🪓 The acclaimed mythic saga of Kratos and Atreus! Epic combat and breathtaking visuals at the best price with trusted fulfillment!"
   },
   26: { // Marvel's Spider-Man Remastered
-    ar: "تحكّم بشخصية بيتر باركر الخبير في محاربة الجرائم الكبرى في مدينة نيويورك النابضة بالحياة. استمتع بالتأرجح الانسيابي بين النطاحات ومواجهة أعتى الأشرار بمهارات القتال الأكروباتية الاستثنائية.",
-    en: "Play as an experienced Peter Parker fighting big crime and iconic villains in Marvel's New York. Experience fluid web-slinging and dynamic acrobatic combat."
+    ar: "🕷️ متعة التأرجح في نيويورك ومقاتلة الأشرار بقوى البطل الخارق! تجربة حركة سريعة ومبهرة للعين بأرخص سعر مضمون وتسليم سريع لبدء المتعة.",
+    en: "🕷️ Swing through Marvel's New York with fluid combat and breathtaking visuals at an exclusive discounted rate with fast delivery!"
   },
   27: { // Farming Simulator 22
-    ar: "محاكي الزراعة الأكثر واقعية وشاملة! قم بإدارة مزرعتك الخاصة، وزراعة المحاصيل، وتربية المواشي، وتشغيل أكثر من 400 آلة زراعية مرخصة من أشهر العلامات التجارية العالمية في فصول السنة المختلفة.",
-    en: "The ultimate agriculture simulator. Create and manage your farm, harvest crops, raise livestock, and operate over 400 authentic machines from real brands across changing seasons."
+    ar: "🚜 محاكي الزراعة والمعدات الأكثر واقعية ومبيعاً في العالم! عش متعة الإدارة وبناء إمبراطوريتك الزراعية بأفضل قيمة توفيرية وتسليم سريع ومضمون.",
+    en: "🚜 The ultimate best-selling agriculture simulator. Build your farming empire at the best discounted price with fast key delivery!"
   },
   28: { // DOOM Eternal
-    ar: "لعبة التصويب والحركة الأسرع والأعنف! بصفك Doom Slayer، دمر جيوش الشياطين عبر الأبعاد باستخدام ترسانة أسلحة فتاكة وسرعة قتالية فائقة وموسيقى حماسية ترفع الأدرينالين.",
-    en: "The ultimate high-speed demon-slaying shooter. As the Doom Slayer, conquer demons across dimensions with an arsenal of deadly weapons and unrelenting speed."
+    ar: "⚡ لعبة الأكشن والحركة الأسرع والأعنف في التاريخ! حماس وموسيقى ترفع الأدرينالين لأقصى حد. احصل عليها بسعر لا يصدق وضمان رسمي شامل!",
+    en: "⚡ The fastest, most intense demon-slaying shooter ever! Get your adrenaline pumping at a huge discount today with fast delivery!"
   },
   29: { // Fallout 4: Game of the Year Edition
-    ar: "تتضمن اللعبة الأصلية الحائزة على أكثر من 200 جائزة بالإضافة إلى جميع الإضافات الست الرسمية (Nuka-World, Vault-Tec Workshop, Far Harbor وغيرها). استكشف العالم المفتوح بعد الكارثة النووية وابنِ مستعمرتك.",
-    en: "Includes the award-winning post-apocalyptic RPG along with all six official add-ons. Rebuild the wasteland and determine the fate of the Commonwealth."
+    ar: "☢️ النسخة الكاملة الشاملة لجميع الإضافات الـ 6 الرسمية! مئات الساعات من الاستكشاف والمتعة اللانهائية بأوفر سعر ممكن مع ضمان شامل وتفعيل معتمد.",
+    en: "☢️ The complete post-apocalyptic GOTY edition including all 6 official DLCs! Endless adventure at a rock-bottom price with verified activation."
   },
   30: { // DARK SOULS III
-    ar: "تحفة ألعاب الأدوار والأكشن الصعبة من FromSoftware. انطلق في رحلة في عالم متهالك مليء بالأعداء القتلة والرؤساء الضخام وتصميم المراحل العبقري ونظام القتال الدقيق.",
-    en: "The acclaimed dark fantasy action RPG by FromSoftware. Master challenging combat, confront colossal bosses, and explore dark, atmospheric realms."
+    ar: "🔥 التحفة الخالدة لعشاق التحدي والقتال الأسطوري! زعماء ملحميون ومراحل عبقرية لا تُنسى. اطلبها الآن واستمتع بسعر مخفض مع ضمان وتسليم موثوق!",
+    en: "🔥 The dark fantasy masterpiece of unmatched combat and colossal bosses. Claim your copy at the lowest price now with guaranteed fast delivery!"
   },
   31: { // Detroit: Become Human
-    ar: "تجربة تفاعلية سينمائية فريدة من Quantic Dream تدور في المستقبل عام 2038 حيث يبدأ الآليون (الأندرويد) بامتلاك المشاعر الإنسانية. كل قرار تتخذه يغير مجرى القصة والنهائيات بشكل كامل.",
-    en: "A gripping cinematic narrative thriller set in 2038 Detroit. Control three distinct androids as their choices shape the fate of humanity and machine."
+    ar: "🎬 تجربة سينمائية تفاعلية ساحرة تجعلك تتحكم بمصير الشخصيات وكل خيار يغير الأحداث بالكامل! تحفة تستحق الاقتناء الآن بأفضل سعر في السوق.",
+    en: "🎬 A breathtaking interactive cinematic thriller where every choice shapes the outcome! Get it now at a special discount with fast delivery."
   },
   34: { // Skyrim Special Edition
-    ar: "ملحمة الفانتازيا والقصة المفتوحة الفائزة بأكثر من 200 جائزة لعبة العام. تتضمن جميع الملحقات والتحسينات البصرية والدعم الكامل للمودات والأنشطة اللانهائية في عالم تمرييل.",
-    en: "Winner of more than 200 Game of the Year Awards, Skyrim Special Edition includes the critically acclaimed game and add-ons with remastered art and effects."
+    ar: "🐉 أسطورة الفانتازيا الخالدة مع كافة الإضافات والتحسينات البصرية! حرية مطلقة وعالم عملاق بانتظارك بأرخص سعر ممكن مع تسليم سريع ومضمون.",
+    en: "🐉 The timeless open-world fantasy masterpiece remastered with all DLCs. Buy now at an irresistible discount and dive in!"
   },
   37: { // Spider-Man: Miles Morales
-    ar: "تابع رحلة المراهق مايلز موراليس وهو يتكيف مع منزله الجديد ويتبع خطى معلمه بيتر باركر ليصبح سبايدرمان الجديد مع قوى حيوية وكهربائية مذهلة لحماية مدينته.",
-    en: "Experience the rise of Miles Morales as he masters new bio-explosive powers to become his own Spider-Man in a snow-covered Marvel's New York."
+    ar: "⚡ انطلق بقوى الكهرباء الحيوية والتخفي المذهلة في شوارع نيويورك المثلجة! إثارة ورسومات مبهرة بأفضل سعر توفيري مع تفعيل سريع وسلس.",
+    en: "⚡ Master bio-electric powers and thrilling combat in snow-covered New York! Grab your key at an exclusive deal with fast delivery."
+  },
+  101: { // FC 27 Standard
+    ar: "⚽ انطلاقة الموسم الجديد لعشاق كرة القدم! استعد لمنافسات الألتيمت تيم وأحدث أطوار اللعب الواقعية مع متجر Lost. طلب مسبق رسمي مضمون 100% وبأوفر سعر لن تجده في أي مكان آخر!",
+    en: "⚽ The ultimate new football season kicks off! Pre-order your 100% authentic copy now at the absolute best market price with guaranteed delivery!"
+  },
+  102: { // FC 27 Ultimate
+    ar: "⭐ باقة النخبة لعشاق التميز! احصل على مميزات حصرية ونقاط إضافية ودخول مبكر لأقوى مواسم كرة القدم. فرصة لا تعوض للشراء بأفضل سعر توفيري مع ضمان كامل وتسليم سريع!",
+    en: "⭐ The Elite Edition for true champions! Enjoy exclusive bonuses, FC Points, and early access. Secure your Ultimate copy now at an unbeatable price!"
+  },
+  103: { // FC 27 Ultimate Plus
+    ar: "👑 النسخة الشاملة والأقوى على الإطلاق! جميع المزايا الخرافية والباكات الحصرية في متناول يدك بأرخص سعر ممكن. استثمر في متعتك الكروية الآن وتمتع بضمان ذهبي شامل!",
+    en: "👑 The supreme all-in-one edition! Maximize your competitive edge with exclusive packs and perks at the best discount available!"
   },
   105: { // Ghost of Tsushima DIRECTOR'S CUT
-    ar: "نسخة المخرج المكتملة لمغامرة الساموراي جين ساكاي في جزيرة تسوشيما اليابانية. تتضمن إضافات جزيرة إيكي ومود اللعب الجماعي Legends ورسومات فائقة الجمال وتقنيات الكومبيوتر الحديثة.",
-    en: "Forge a new path and wage an unconventional war for the freedom of Tsushima. Includes the full game, Iki Island expansion, and Legends co-op mode."
+    ar: "🌸 المغامرة اليابانية الملحمية الأكثر سحراً وجمالاً! معارك ساموراي أسطورية وعالم مفتوح مذهل. لا تفوت هذا السعر التنافسي المذهل واقتنِ نسختك الأصلية لبدء رحلتك!",
+    en: "🌸 The epic samurai masterpiece with stunning visuals and thrilling combat! Get your Director's Cut edition today at the lowest price with fast access."
+  },
+  106: { // Black Myth: Wukong Account
+    ar: "🐒 ظاهرة ألعاب الأكشن العالمية واللعبة الأكثر مبيعاً وشهرة! رسومات خرافية وقتال أسطوري حماسي. احصل على حسابك الرسمي المضمون بأفضل سعر وابدأ مغامرتك الأسطورية!",
+    en: "🐒 The global gaming phenomenon! Stunning Unreal Engine 5 graphics and exhilarating boss fights. Grab your verified account now at the best price!"
+  },
+  107: { // Dead by Daylight Account
+    ar: "🩸 ادخل عالم الرعب والإثارة اللانهائية مع أصدقائك! حساب رسمي وموثوق بأقل تكلفة، تسليم سريع وتغيير كامل للبيانات لتستمتع بأقوى مطاردات الأونلاين بدون توقف.",
+    en: "🩸 Dive into non-stop thrilling multiplayer horror! Fully customizable and verified account with fast delivery at the lowest price."
   },
   108: { // Ready or Not
-    ar: "محاكي التكتيك والتصويب الواقعي المكثف لفريق SWAT في الأزمات المعاصرة. يتطلب التخطيط التكتيكي والعمل الجماعي الدقيق واستخدام معدات الاقتحام للتعامل مع المواقف الإجرامية الخطيرة.",
-    en: "An intense, tactical, first-person shooter depicting a modern-day SWAT team performing high-risk operations in realistic scenarios."
+    ar: "🚨 لعبة التكتيك والاقتحام الواقعية رقم #1 عالمياً! عش تجربة قوات التدخل السريع مع أصدقائك بأعلى درجات الواقعية. متوفرة بتسليم سريع وأفضل سعر لتنطلق في المهمات الآن!",
+    en: "🚨 The #1 realistic tactical SWAT shooter! Ultimate co-op realism, fast delivery, and the best price on the market."
+  },
+  109: { // Ready or Not Account
+    ar: "🚨 حساب جاهز ومضمون للعبة الاقتحام التكتيكية الأشهر! بيانات خاصة فيك وقابلة للتعديل بالكامل مع تسليم سريع لتبدأ اللعب الجماعي مع فريقك بأوفر تكلفة.",
+    en: "🚨 Fully verified private Ready or Not account! Full access, email customizable, and fast delivery at the best budget rate."
   },
   110: { // Resident Evil 4 Remake
-    ar: "إعادة بناء كاملة لأسطورة الرعب والأكشن. يتوجه العميل ليون كينيدي في مهمة إنقاذ ابنة الرئيس الأمريكي من قرية أوروبية معزولة يسيطر عليها طقس غامض ومخيف بأسلوب لعب عصري مذهل.",
-    en: "Survival horror reimagined. Leon S. Kennedy sets off to rescue the President's kidnapped daughter from a secluded European village steeped in nightmare."
+    ar: "💥 أسطورة الرعب والتشويق بأحدث وأقوى نسخة ريميك لعام 2024! متعة بصرية وأسلوب لعب إدماني يخطف الأنفاس. احصل عليها الآن بعرض خاص وسعر منافس مع تسليم سريع ومضمون!",
+    en: "💥 The legendary survival horror masterpiece completely reimagined! Thrilling combat and jaw-dropping visuals. Claim your special offer now with fast delivery!"
   },
   111: { // Resident Evil Village
-    ar: "استكمال لقصة إيثان وينترز في البحث عن ابنته المخطوفة داخل قرية مثلجة مرعبة تسيطر عليها مخلوقات وحشية وقادة عائلة ديميتريسكو الغامضين بأسلوب الرعب من منظور الشخص الأول.",
-    en: "Experience survival horror like never before in Resident Evil Village. Help Ethan Winters battle terrifying foes in a snow-covered village of horrors."
+    ar: "🏰 تجربة رعب سينمائية تحبس الأنفاس وأجواء غامضة لا تُنسى! وفر فلوسك واقتنِ نسختك الأصلية 100% بأرخص سعر متاح في السوق مع تفعيل سريع وضمان كامل.",
+    en: "🏰 A breathtaking cinematic horror spectacle! Save big and get your 100% authentic game at the lowest price with fast activation."
   },
   112: { // Lies of P
-    ar: "لعبة سولزلایک مثيرة مستوحاة من قصة بينوكيو الشهيرة، تقع أحداثها في مدينة كرات المظلمة والموبوءة بالدمى القاتلة. قاتل بسلاحك المطور واكذب للوصول للحقيقة للبقاء على قيد الحياة.",
-    en: "A thrilling Soulslike game inspired by the story of Pinocchio. Fight through the dark city of Krat, customizing weapons and choosing truth or lies."
+    ar: "⚔️ واحدة من أفضل ألعاب السولز والأكشن في السنوات الأخيرة! تحدي حماسي وأسلحة مبتكرة وعالم مظلم ساحر. اطلبها الآن واستمتع بسعر توفيري استثنائي وضمان رسمي شامل.",
+    en: "⚔️ One of the finest Souls-like action masterpieces! Captivating world, deep customization, and an irresistible discount waiting for you."
+  },
+  113: { // ARK: Survival Ascended Account
+    ar: "🦖 تجربة البقاء مع الديناصورات بأقوى محرك رسومات Unreal Engine 5! روّض، ابنِ، وحارب في عالم عملاق بأفضل سعر وتسليم سريع مع ضمان الحساب الكامل.",
+    en: "🦖 Next-gen dinosaur survival reimagined in Unreal Engine 5! Buy your verified account at the best market price today with fast delivery."
+  },
+  114: { // Sekiro: Shadows Die Twice Account
+    ar: "🗡️ الحائزة على جائزة لعبة العام (GOTY)! متعة القتال بالسيوف والدقة الخالصة التي لا مثيل لها. اقتنص العرض الخارق الآن واختبر مهاراتك بسعر لا يقبل المنافسة!",
+    en: "🗡️ Game of the Year winner! Master sword combat and defeat challenging foes. Grab this verified account at an exclusive discounted price today!"
   },
   115: { // Tom Clancy's Ghost Recon Breakpoint
-    ar: "لعبة تصويب وتكتيك عسكرية في عالم مفتوح شاسع. بصفتك أحد جنود الـ Ghost المقاتلين، حارب للعيش ضد وحدة عسكرية متمردة تمتلك طائرات درون فتاكة في جزيرة أوروا.",
-    en: "A military shooter set in a diverse and hostile open world. Play solo or in four-player co-op against a rogue spec-ops faction."
+    ar: "🎯 التكتيك العسكري والحروب الحديثة في أروع عالم مفتوح مع أصدقائك! احصل على نسختك الآن بسعر تنافسي وتفعيل سريع للبدء بالمهام.",
+    en: "🎯 Elite military tactical shooter in a hostile open world! Special limited-time discount with fast activation."
   }
 };
 
@@ -1189,10 +1221,19 @@ const getProductDescription = (product: Product, lang: Language): string => {
   if (product.description?.[lang]) return product.description[lang];
   if (GAME_DESCRIPTIONS[product.id]?.[lang]) return GAME_DESCRIPTIONS[product.id][lang];
   
+  const isAccount = product.category === 'accounts' || product.name.ar.includes('حساب') || product.name.en.toLowerCase().includes('account');
+
   if (lang === 'ar') {
-    return `استمتع بتجربة ألعاب لا مثيل لها مع ${product.name.ar} من متجر Lost! احصل على المنتج الرسمي 100% بأفضل سعر في السوق مع ضمان شامل وتفعيل سريع.`;
+    if (isAccount) {
+      return `✨ امتلك ${product.name.ar} الآن بحساب رسمي ومضمون 100%! تسليم سريع ومباشر مع إمكانية تغيير كافة بيانات الحساب وضمان ذهبي شامل من متجر Lost. لا تفوّت هذا السعر التوفيري واطلب نسختك الآن!`;
+    }
+    return `🔥 فرصة ذهبية لا تعوض! احصل على ${product.name.ar} الرسمية 100% بأرخص وأفضل سعر في السوق مع تسليم سريع وتفعيل سلس وضمان متجر Lost الكامل لتستمتع باللعب بأفضل تجربة!`;
   }
-  return `Get ${product.name.en} officially from Lost Store at the best price! 100% authentic product with full warranty and fast activation.`;
+
+  if (isAccount) {
+    return `✨ Get ${product.name.en} with a 100% verified authentic account! Fast delivery right after purchase with full ownership transfer and lifetime warranty from Lost Store. Grab this exclusive deal now!`;
+  }
+  return `🔥 Unbeatable limited-time offer! Get ${product.name.en} 100% officially at the best market price. Fast delivery, rapid activation, and full warranty from Lost Store. Start playing right away!`;
 };
 
 const ActivationGuide = ({ isRockstar, lang }: { isRockstar: boolean; lang: Language }) => {
